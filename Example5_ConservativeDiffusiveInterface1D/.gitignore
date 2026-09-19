@@ -1,0 +1,11 @@
+# Simulation outputs (not committed)
+*.csv
+*log.txt
+*.png
+*.pdf
+*.vtu
+*.vtk
+*codeout*
+*code.jl
+*.mp4
+*.avi
