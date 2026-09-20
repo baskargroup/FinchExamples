@@ -1,4 +1,4 @@
-% Figure 3: interface position (centroid of phi) vs time
+% Figure 3: droplet centroid (x-centroid of phi) vs time
 clc; close all; clear;
 plot_common;
 xc = zeros(nsnap,1);
@@ -14,12 +14,12 @@ hN = plot(ax, times, xc, 'o', 'Color', S.blue, 'LineWidth', 1, ...
 hE = plot(ax, times, xc_exact, '-', 'Color', S.orange, 'LineWidth', 2, ...
      'DisplayName', 'Exact');
 S.axes(ax);
-xlabel(ax, 'Time'); ylabel(ax, 'Interface position');
+xlabel(ax, 'Time'); ylabel(ax, 'Droplet centroid');
 xlim(ax, [times(1) times(end)]); ylim(ax, [xc0 xc0 + ux*times(end)]);
 grid(ax, 'minor');
 ax.MinorGridColor = S.grid; ax.MinorGridAlpha = 0.6; ax.MinorGridLineStyle = ':';
 ax.XAxis.MinorTickValues = times(1):0.02:times(end);
 ax.YAxis.MinorTickValues = xc0:0.02:(xc0 + ux*times(end));
 legend(ax, [hE hN], 'Location', 'northwest', 'Box', 'off', 'TextColor', S.ink2);
-S.save(fig, 'Figure3_InterfacePosition.pdf');
-fprintf('max interface position error = %.3e\n', max(abs(xc - xc_exact)));
+S.save(fig, 'Figure3_Centroid.pdf');
+fprintf('max centroid error = %.3e\n', max(abs(xc - xc_exact)));

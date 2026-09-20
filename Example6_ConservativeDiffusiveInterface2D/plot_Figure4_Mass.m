@@ -1,7 +1,13 @@
 % Figure 4: total mass (integral of phi) relative to its initial value vs time
 clc; close all; clear;
 plot_common;
-mass = sum(PHI, 1)' * dx * dx;       % nodal quadrature (phi = 0 on boundary)
+% Lumped finite element weights: the lumped mass entry of a node is the integral
+% of its basis function, which the boundary truncates to half at an edge node and
+% a quarter at a corner. This keeps the sum exact once phi reaches the wall.
+w = ones(size(x));
+w(abs(x) < 1e-12 | abs(x-1) < 1e-12) = 0.5 * w(abs(x) < 1e-12 | abs(x-1) < 1e-12);
+w(abs(y) < 1e-12 | abs(y-1) < 1e-12) = 0.5 * w(abs(y) < 1e-12 | abs(y-1) < 1e-12);
+mass = (w' * PHI)' * dx * dx;
 rel  = mass / mass(1) - 1;
 
 fig = S.figure(800, 450);

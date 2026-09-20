@@ -15,7 +15,7 @@ x0  = 0.25;
 eps = 1/200;
 
 % Interface position = phi = 0.5 crossing, linearly interpolated between the
-% last node below 0.5 and the first node above it (sub-cell accuracy).
+% last node below 0.5 and the first node above it (sub-element accuracy).
 xi = zeros(nsnap,1);
 for k = 1:nsnap
     j = find(PHI(:,k) >= 0.5, 1);            % first node with phi >= 0.5

@@ -11,7 +11,10 @@
 # Test: circle of radius R advected by a uniform velocity (ux, uy). The
 # equilibrium profile translates without change of shape:
 #   phi_exact(x,y,t) = 0.5*(1 - tanh((r - R)/(2*eps))),  r = |x - xc(t)|
-# CG, linear elements on a quad mesh. phi = 0 on all boundaries.
+# CG, linear elements on a quad mesh. No-flux (natural) boundaries: the weak
+# form omits the boundary integral, which is the g = 0 condition, so mass is
+# conserved to round-off. Dirichlet phi = 0 would instead discard the little
+# mass that reaches the wall once the interface tail gets there.
 #==============================================================================#
 
 using Finch
@@ -47,9 +50,9 @@ R    = 0.15                # circle radius
 xc0  = 0.3                 # initial circle center
 yc0  = 0.5
 
-# Boundary conditions: phi = 0 on the whole boundary (circle stays interior)
-boundary(phi, 1, DIRICHLET, 0)
-boundary(phio, 1, DIRICHLET, 0)
+# Boundary conditions: no flux on the whole boundary (natural condition)
+boundary(phi, 1, NO_BC)
+boundary(phio, 1, NO_BC)
 
 # Initial condition: equilibrium tanh profile around the circle
 ic = "0.5*(1 - tanh((sqrt((x-$xc0)^2 + (y-$yc0)^2) - $R)/(2*$eps)))"
@@ -110,7 +113,16 @@ weakForm(phi, "theta1*Dt(phi*v)" *
 evalInitialConditions()
 push!(snapshots, copy(phi.values[:]))
 push!(snap_times, 0.0)
-mass0 = sum(phi.values) * dx * dx     # nodal quadrature (phi = 0 on boundary)
+# Lumped finite element weights: the lumped mass entry of a node is the integral
+# of its basis function, which the boundary truncates to half at an edge node and
+# a quarter at a corner. This keeps the mass sum exact once phi reaches the wall.
+nodes = Finch.finch_state.grid_data.allnodes
+wts = fill(dx*dx, size(nodes, 2))
+for i = 1:size(nodes, 2)
+    if nodes[1,i] < 1e-12 || nodes[1,i] > 1 - 1e-12; wts[i] *= 0.5; end
+    if nodes[2,i] < 1e-12 || nodes[2,i] > 1 - 1e-12; wts[i] *= 0.5; end
+end
+mass0 = sum(wts .* phi.values[:])
 
 solve(phi)
 
@@ -126,7 +138,7 @@ r  = sqrt.((x .- xc).^2 .+ (y .- yc).^2)
 exact = 0.5 .* (1 .- tanh.((r .- R) ./ (2*eps)))
 
 maxerr = maximum(abs.(phivals .- exact))
-massT  = sum(phivals) * dx * dx
+massT  = sum(wts .* phivals)
 println("max error = " * string(maxerr))
 println("min phi = " * string(minimum(phivals)) * ", max phi = " * string(maximum(phivals)))
 println("relative mass change = " * string((massT - mass0)/mass0))
