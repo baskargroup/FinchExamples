@@ -3,8 +3,8 @@ clc; close all; clear;
 % solution_timeseries.csv: column 1 = x, columns 2..N+1 = phi at snapshot k
 % snapshot_times.csv:      time of each snapshot
 S     = plot_style();
-ts    = readmatrix('solution_timeseries.csv');
-times = readmatrix('snapshot_times.csv');
+ts    = S.load('solution_timeseries.csv');
+times = S.load('snapshot_times.csv');
 x     = ts(:,1);
 PHI   = ts(:,2:end);
 nsnap = size(PHI,2);
@@ -17,9 +17,9 @@ phi_exact = @(t) 0.5*(1 + tanh((x - x0 - u*t)/(2*eps)));
 
 fps = 5;
 try
-    vid = VideoWriter('Video1_Animation.mp4', 'MPEG-4');          % Mac / Windows
+    vid = VideoWriter(S.file('Video1_Animation.mp4'), 'MPEG-4');          % Mac / Windows
 catch
-    vid = VideoWriter('Video1_Animation.avi', 'Motion JPEG AVI'); % Linux fallback
+    vid = VideoWriter(S.file('Video1_Animation.avi'), 'Motion JPEG AVI'); % Linux fallback
 end
 vid.FrameRate = fps;
 open(vid);

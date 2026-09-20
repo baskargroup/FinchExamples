@@ -23,7 +23,8 @@ using Finch
 
 initFinch("cdi1d");
 
-useLog("cdi1dlog", level=3)
+# results are written to output/, a folder kept in the repo
+useLog("cdi1dlog", dir="output", level=3)
 
 domain(1)
 functionSpace(order=1)
@@ -49,6 +50,7 @@ boundary(phi, 1, DIRICHLET, 0)
 boundary(phi, 2, DIRICHLET, 1)
 
 # Initial condition: the equilibrium profile centred at x0
+# Stores the IC expression, does not evaluate it yet.
 ic = "0.5*(1 + tanh((x - $x0)/(2*$eps)))"
 initial(phi, ic)
 
@@ -152,10 +154,10 @@ println("min phi = " * string(minimum(phivals)) * ", max phi = " * string(maximu
 using DelimitedFiles
 
 data = [x phivals exact]
-writedlm("solution.csv", data, ',')
+writedlm("output/solution.csv", data, ',')
 
 # Time series: column 1 is x, the rest is phi at each snapshot time
 ts = hcat(x, snapshots...)
-writedlm("solution_timeseries.csv", ts, ',')
-writedlm("snapshot_times.csv", snap_times, ',')
+writedlm("output/solution_timeseries.csv", ts, ',')
+writedlm("output/snapshot_times.csv", snap_times, ',')
 println(string(length(snap_times)) * " snapshots written")

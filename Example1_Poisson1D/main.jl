@@ -8,7 +8,8 @@ using Finch                     # Load Finch package
 initFinch("poisson1d");         # Initialize  1D Poisson problem setup
 
 
-useLog("poisson1dlog", level=3) # Enable logging to file
+# results are written to output/, a folder kept in the repo
+useLog("poisson1dlog", dir="output", level=3) # Enable logging to file
 
 # Set up the configuration
 
@@ -61,7 +62,7 @@ x = Finch.finch_state.grid_data.allnodes[1, :]  # x-coordinates
 uvals = u.values[:]                              # computed solution
 
 data = [x uvals]                                # two-column array
-writedlm("solution.csv", data, ',')             # write to CSV
+writedlm("output/solution.csv", data, ',')             # write to CSV
 
 
 

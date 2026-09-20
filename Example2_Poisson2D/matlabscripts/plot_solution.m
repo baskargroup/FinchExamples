@@ -2,7 +2,8 @@
 clc;clear;close all
 
 % Load data
-data = readmatrix('solution.csv');
+outdir = fullfile(fileparts(mfilename('fullpath')), '..', 'output');
+data = readmatrix(fullfile(outdir, 'solution.csv'));
 x = data(:,1);
 y = data(:,2);
 u = data(:,3);

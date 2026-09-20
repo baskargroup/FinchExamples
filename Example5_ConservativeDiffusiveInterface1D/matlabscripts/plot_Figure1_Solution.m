@@ -3,7 +3,7 @@ clc; close all; clear;
 % Final state of the 1D CDI solution: numerical vs exact translated tanh.
 % solution.csv: x, phi (numerical), phi (exact)
 S = plot_style();
-data   = readmatrix('solution.csv');
+data   = S.load('solution.csv');
 x      = data(:,1);
 phi    = data(:,2);
 phi_ex = data(:,3);

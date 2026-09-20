@@ -3,9 +3,9 @@ clc; close all; clear;
 plot_common;
 fps = 5;
 try
-    vid = VideoWriter('Video1_Animation.mp4', 'MPEG-4');          % Mac / Windows
+    vid = VideoWriter(S.file('Video1_Animation.mp4'), 'MPEG-4');          % Mac / Windows
 catch
-    vid = VideoWriter('Video1_Animation.avi', 'Motion JPEG AVI'); % Linux fallback
+    vid = VideoWriter(S.file('Video1_Animation.avi'), 'Motion JPEG AVI'); % Linux fallback
 end
 vid.FrameRate = fps;
 open(vid);

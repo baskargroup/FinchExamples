@@ -9,7 +9,8 @@ using Finch
 
 initFinch("convdiff2d");
 
-useLog("convdiff2dlog", level=3)
+# results are written to output/, a folder kept in the repo
+useLog("convdiff2dlog", dir="output", level=3)
 
 # Set up the configuration
 domain(2)              # dimension
@@ -65,4 +66,4 @@ y = Finch.finch_state.grid_data.allnodes[2, :]
 uvals = u.values[:]
 
 data = [x y uvals]
-writedlm("solution.csv", data, ',')
+writedlm("output/solution.csv", data, ',')

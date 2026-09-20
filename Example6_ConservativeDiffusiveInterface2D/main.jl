@@ -21,7 +21,8 @@ using Finch
 
 initFinch("cdi2d");
 
-useLog("cdi2dlog", level=3)
+# results are written to output/, a folder kept in the repo
+useLog("cdi2dlog", dir="output", level=3)
 
 domain(2)
 functionSpace(order=1)
@@ -161,10 +162,10 @@ println("relative mass change = " * string((massT - mass0)/mass0))
 using DelimitedFiles
 
 data = [x y phivals exact]
-writedlm("solution.csv", data, ',')
+writedlm("output/solution.csv", data, ',')
 
 # Time series: columns 1-2 = x, y; columns 3.. = phi at each snapshot time
 ts = hcat(x, y, snapshots...)
-writedlm("solution_timeseries.csv", ts, ',')
-writedlm("snapshot_times.csv", snap_times, ',')
+writedlm("output/solution_timeseries.csv", ts, ',')
+writedlm("output/snapshot_times.csv", snap_times, ',')
 println(string(length(snap_times)) * " snapshots written")

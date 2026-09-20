@@ -1,7 +1,8 @@
 clc;close all; clear;
 
 % Load the CSV file
-data = readmatrix('solution.csv');
+outdir = fullfile(fileparts(mfilename('fullpath')), '..', 'output');
+data = readmatrix(fullfile(outdir, 'solution.csv'));
 
 x = data(:,1);         % x coordinates
 u = data(:,2);         % numerical solution
@@ -21,7 +22,7 @@ legend show;
 grid on;
 
 % Save the figure as PNG
-saveas(gcf, 'poisson1d_solution.png')  
+saveas(gcf, fullfile(outdir, 'poisson1d_solution.png'))  
 
 % Or save as PDF
-% saveas(gcf, 'poisson1d_solution.pdf')  
+% saveas(gcf, fullfile(outdir, 'poisson1d_solution.pdf'))  

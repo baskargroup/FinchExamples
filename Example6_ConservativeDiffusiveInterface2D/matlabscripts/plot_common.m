@@ -3,8 +3,8 @@
 % solution_timeseries.csv: columns 1-2 = x, y; columns 3.. = phi at snapshot k
 % snapshot_times.csv:      time of each snapshot
 S     = plot_style();
-ts    = readmatrix('solution_timeseries.csv');
-times = readmatrix('snapshot_times.csv');
+ts    = S.load('solution_timeseries.csv');
+times = S.load('snapshot_times.csv');
 x     = ts(:,1);
 y     = ts(:,2);
 PHI   = ts(:,3:end);

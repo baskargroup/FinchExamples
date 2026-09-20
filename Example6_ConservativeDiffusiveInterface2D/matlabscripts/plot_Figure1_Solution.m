@@ -20,5 +20,5 @@ style_field_axes(ax, S);
 legend(ax, [hE hN], 'Location', 'northwest', 'Box', 'off', 'TextColor', S.ink2);
 S.save(fig, 'Figure1_Solution.pdf');
 
-data = readmatrix('solution.csv');
+data = S.load('solution.csv');
 fprintf('max error = %.4e\n', max(abs(data(:,3) - data(:,4))));

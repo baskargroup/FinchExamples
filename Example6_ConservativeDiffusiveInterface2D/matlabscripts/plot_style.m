@@ -7,7 +7,9 @@ function S = plot_style()
 %   S.ramp(n)              n-step single-hue blue ramp (light -> dark) for time
 %   S.figure(w, h)         new white figure of w x h pixels
 %   S.axes(ax)             apply axis styling
-%   S.save(fig, name)      export as vector PDF (resolution independent)
+%   S.load(name)           read a result file from output/
+%   S.file(name)           path of a file in output/
+%   S.save(fig, name)      export as vector PDF into output/
 S.blue   = [ 42 120 214]/255;   % #2a78d6
 S.orange = [235 104  52]/255;   % #eb6834
 S.ink    = [ 11  11  11]/255;   % #0b0b0b
@@ -24,7 +26,14 @@ S.ramp = @(n) [linspace(ramp_ends(1,1), ramp_ends(2,1), n)', ...
 S.figure = @(w, h) figure('Color', 'w', 'Position', [100 100 w h], ...
                           'InvertHardcopy', 'off');
 S.axes   = @style_axes;
-S.save   = @(fig, name) exportgraphics(fig, name, 'ContentType', 'vector', ...
+% Results live in the example's output/ folder, one level up from this
+% script. Deriving it from the script's own path keeps these helpers
+% working whatever the current directory happens to be.
+outdir   = fullfile(fileparts(mfilename('fullpath')), '..', 'output');
+S.file   = @(name) fullfile(outdir, name);
+S.load   = @(name) readmatrix(fullfile(outdir, name));
+S.save   = @(fig, name) exportgraphics(fig, fullfile(outdir, name), ...
+                                       'ContentType', 'vector', ...
                                        'BackgroundColor', 'w');
 
     function style_axes(ax)

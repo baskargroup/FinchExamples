@@ -9,7 +9,8 @@ using Finch
 
 initFinch("convdiff1d");
 
-useLog("convdiff1dlog", level=3)
+# results are written to output/, a folder kept in the repo
+useLog("convdiff1dlog", dir="output", level=3)
 
 domain(1)
 functionSpace(order=1)
@@ -54,4 +55,4 @@ x = Finch.finch_state.grid_data.allnodes[1, :]
 uvals = u.values[:]
 
 data = [x uvals]
-writedlm("solution.csv", data, ',')
+writedlm("output/solution.csv", data, ',')

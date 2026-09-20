@@ -3,8 +3,8 @@ clc; close all; clear;
 % solution_timeseries.csv: column 1 = x, columns 2..N+1 = phi at snapshot k
 % snapshot_times.csv:      time of each snapshot
 S     = plot_style();
-ts    = readmatrix('solution_timeseries.csv');
-times = readmatrix('snapshot_times.csv');
+ts    = S.load('solution_timeseries.csv');
+times = S.load('snapshot_times.csv');
 x     = ts(:,1);
 PHI   = ts(:,2:end);
 nsnap = size(PHI,2);

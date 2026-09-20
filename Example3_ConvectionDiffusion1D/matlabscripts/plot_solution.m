@@ -1,6 +1,7 @@
 clc;close all; clear;
 % Load the CSV file
-data = readmatrix('solution.csv');
+outdir = fullfile(fileparts(mfilename('fullpath')), '..', 'output');
+data = readmatrix(fullfile(outdir, 'solution.csv'));
 x = data(:,1);         % x coordinates
 u = data(:,2);         % numerical solution
 % Analytical solution
@@ -15,6 +16,6 @@ title('1D Convection-Diffusion Solution vs Analytical');
 legend show;
 grid on;
 % Save the figure as PNG
-saveas(gcf, 'convdiff1d_solution.png')
+saveas(gcf, fullfile(outdir, 'convdiff1d_solution.png'))
 % Or save as PDF
-% saveas(gcf, 'convdiff1d_solution.pdf')
+% saveas(gcf, fullfile(outdir, 'convdiff1d_solution.pdf'))

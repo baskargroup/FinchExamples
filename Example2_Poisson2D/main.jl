@@ -1,6 +1,9 @@
+using Finch
+
 initFinch("heat2d");
 
-useLog("heat2dlog", level=3)
+# results are written to output/, a folder kept in the repo
+useLog("heat2dlog", dir="output", level=3)
 
 # Set up the configuration
 domain(2)              # dimension
@@ -44,7 +47,7 @@ uvals = u.values[:]                              # computed solution
 data = [x y uvals]
 
 # Write to CSV
-writedlm("solution.csv", data, ',')
+writedlm("output/solution.csv", data, ',')
 
 
 
