@@ -52,12 +52,10 @@ yc0  = 0.5
 
 # Boundary conditions: no flux on the whole boundary (natural condition)
 boundary(phi, 1, NO_BC)
-boundary(phio, 1, NO_BC)
 
 # Initial condition: equilibrium tanh profile around the circle
 ic = "0.5*(1 - tanh((sqrt((x-$xc0)^2 + (y-$yc0)^2) - $R)/(2*$eps)))"
 initial(phi, ic)
-initial(phio, ic)
 
 # Time stepping. Explicit diffusive limit in 2D (lumped mass):
 # dt <= dx^2/(4*gamma*eps). Consistent mass matrix needs roughly 1/3 of that.
@@ -76,10 +74,26 @@ coefficient("gamma", gam)
 coefficient("epsilon", eps)
 coefficient("delta", 1e-12)                     # regularizes |grad(phi)| in the bulk
 
-# Snapshots for the time series: store phi every snap_every steps
+# The unit interface normal, named here so the weak form below stays readable.
+# parameter() is not a coefficient: it is just a named symbolic expression that
+# Finch substitutes into the weak form, so the generated code is unchanged.
+parameter("nhat", "grad(phio) ./ sqrt.(dot(grad(phio), grad(phio)) .+ delta)")
+
+# Snapshots for the time series. Saving all 2400 steps would be wasteful, so
+# phi is kept every 40th step: 60 snapshots, plus one at t = 0 further down,
+# makes the 61 the MATLAB scripts read.
 snap_every = 40
-snapshots  = Vector{Vector{Float64}}()   # one vector of nodal values per snapshot
+
+# A list of lists. Each entry is a copy of every nodal value, so snapshots[k] is
+# the whole field at snapshot k.
+snapshots  = Vector{Vector{Float64}}()
+
+# The simulation time of each snapshot.
 snap_times = Float64[]
+
+# Step counter. A Ref is a box holding the value. The post-step body is its own
+# function, so a plain Int assigned in there would just become a local variable;
+# writing step_count[] updates this one.
 step_count = Ref(0)
 
 # After each step the new solution becomes the "previous" field, and a
@@ -103,14 +117,15 @@ step_count = Ref(0)
 #   + theta3*(gamma*eps*grad phio, grad v)            diffusion
 #   - theta4*(gamma*(phio - phio^2)*nhat, grad v)     sharpening
 # with nhat = grad(phio)/sqrt(|grad(phio)|^2 + delta)
-weakForm(phi, "theta1*Dt(phi*v)" *
+weakForm(phi, "theta1*Dt(phi)*v" *
               " - 0.5*theta2*phio*dot(u, grad(v))" *
               " - 0.5*theta2*phio*(div(u)*v + dot(u, grad(v)))" *
               " + theta3*gamma*epsilon*dot(grad(phio), grad(v))" *
-              " - theta4*gamma*(phio - phio*phio) .* dot(grad(phio) ./ sqrt.(dot(grad(phio), grad(phio)) .+ delta), grad(v))")
+              " - theta4*gamma*(phio - phio*phio) .* dot(nhat, grad(v))")
 
 # Evaluate the initial condition now so it can be stored as the t = 0 snapshot
 evalInitialConditions()
+phio.values .= phi.values   # phio holds the field the first step reads
 push!(snapshots, copy(phi.values[:]))
 push!(snap_times, 0.0)
 # Lumped finite element weights: the lumped mass entry of a node is the integral

@@ -9,3 +9,6 @@
 *code.jl
 *.mp4
 *.avi
+
+# Personal notes (not committed)
+notes_*.md
