@@ -1,0 +1,12 @@
+Style Guide for Finch.
+
+Naming:
+Modules: capitalized, camelCase like "CodeGenerator"
+Structs: capitalized, camelCase like "MeshData"
+User interface functions: lower case, camelCase
+
+Names should NOT be excessively shortened unless obvious from the context.
+For example "distribution_coefficient" could be something like "distrib_coef"
+but not "dc" or "dist".
+
+Feel free to make any more suggestions on style.
