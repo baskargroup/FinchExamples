@@ -14,11 +14,22 @@ Julia finite element package.
 | `Example5_ConservativeDiffusiveInterface1D` | CDI phase-field model: translating interface |
 | `Example6_ConservativeDiffusiveInterface2D` | CDI phase-field model: circle in uniform flow |
 | `Example7_ConservativeDiffusiveInterfaceImplicit1D` | CDI, semi-implicit (BDF2, two Picard iterations): translating interface |
+| `Example8_ConservativeDiffusiveInterfaceImplicit2D` | CDI, semi-implicit, as derived: circle in uniform flow |
+| `Example9_ConservativeDiffusiveInterfaceImplicitLagged1D` | as Example 7 with the sharpening term fully lagged |
+| `Example10_ConservativeDiffusiveInterfaceImplicitLagged2D` | as Example 8 with the sharpening term fully lagged |
+| `Example11_ConservativeDiffusiveInterfaceVMS1D` | as Example 7 with VMS stabilization (residual-based, tau from the derivation) |
 
 Each folder contains `main.jl` (the Finch script), `run.sh`, `matlabscripts/`
-(figure scripts) and `output/` (results; not committed). Example 7 also has
+(figure scripts) and `output/` (results; not committed). Examples 7, 9 and 11 also have
 `convergence.sh`, a temporal convergence study (`convergence.jl`), whose figure is
 `plot_Figure4_TemporalConvergence.m`.
+
+Examples 7-10 are the semi-implicit scheme (BDF2, two Picard iterations per step).
+In 7 and 8 the sharpening term is linearized as in the derivation, with one factor
+implicit; in 9 and 10 it is evaluated entirely from the Picard iterate. The two
+agree in 1D, but on the 300 x 300 mesh the derived form grows a grid-scale
+wrinkle along the leading edge (`plot_Figure5_FrontZoom.m` in Examples 8 and 10
+shows it), which the fully lagged form does not have.
 
 ## Setup, once
 
