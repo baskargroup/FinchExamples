@@ -16,7 +16,9 @@ Julia finite element package.
 | `Example7_ConservativeDiffusiveInterfaceImplicit1D` | CDI, semi-implicit (BDF2, two Picard iterations): translating interface |
 
 Each folder contains `main.jl` (the Finch script), `run.sh`, `matlabscripts/`
-(figure scripts) and `output/` (results; not committed).
+(figure scripts) and `output/` (results; not committed). Example 7 also has
+`convergence.sh`, a temporal convergence study (`convergence.jl`), whose figure is
+`plot_Figure4_TemporalConvergence.m`.
 
 ## Setup, once
 
