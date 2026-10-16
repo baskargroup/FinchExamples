@@ -18,6 +18,7 @@ Julia finite element package.
 | `Example9_ConservativeDiffusiveInterfaceImplicitLagged1D` | as Example 7 with the sharpening term fully lagged |
 | `Example10_ConservativeDiffusiveInterfaceImplicitLagged2D` | as Example 8 with the sharpening term fully lagged |
 | `Example11_ConservativeDiffusiveInterfaceVMS1D` | as Example 7 with VMS stabilization (residual-based, tau from the derivation) |
+| `Example12_ConservativeDiffusiveInterfaceVMS2D` | as Example 8 with VMS stabilization |
 
 Each folder contains `main.jl` (the Finch script), `run.sh`, `matlabscripts/`
 (figure scripts) and `output/` (results; not committed). Examples 7, 9 and 11 also have
@@ -54,7 +55,9 @@ Inside any example folder:
     ./run.sh
 
 Results and a `runlog.txt` with the printed output land in that example's
-`output/`. The first run of a session takes longer (compilation).
+`output/`. The first run of a session takes longer (compilation). Example 12 is
+the slow one: about an hour on a laptop (the stabilized weak form is large; see
+its `notes/notes_cost.md`).
 
 Figures need MATLAB: from the example's `matlabscripts/` folder run any
 `plot_*.m`; the PDFs are written to `output/` as well.
