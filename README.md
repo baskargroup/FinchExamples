@@ -13,6 +13,7 @@ Julia finite element package.
 | `Example4_ConvectionDiffusion2D` | Convection-diffusion, 2D |
 | `Example5_ConservativeDiffusiveInterface1D` | CDI phase-field model: translating interface |
 | `Example6_ConservativeDiffusiveInterface2D` | CDI phase-field model: circle in uniform flow |
+| `Example7_ConservativeDiffusiveInterfaceImplicit1D` | CDI, semi-implicit (BDF2, two Picard iterations): translating interface |
 
 Each folder contains `main.jl` (the Finch script), `run.sh`, `matlabscripts/`
 (figure scripts) and `output/` (results; not committed).
