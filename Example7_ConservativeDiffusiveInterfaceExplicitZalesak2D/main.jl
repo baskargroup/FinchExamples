@@ -17,7 +17,7 @@
 # that normal is constant inside each element and jumps between elements, and
 # on this case it produced grid-scale wiggles along the slot walls, shed
 # fragments and a widened slot (L1 error 1.2e-2, slot 0.059 wide instead of
-# 0.050; results kept in output/elementwise_normal/). With the nodal normal the
+# 0.050; elementwise_normal.sh reproduces it). With the nodal normal the
 # walls are smooth, nothing is shed and the slot keeps its width (L1 error
 # 3.4e-3). Mirjalili et al. (JCP 2020) likewise use a continuous normal, from
 # central differences at cell centres.

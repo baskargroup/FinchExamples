@@ -58,7 +58,9 @@ error 1.2e-2 against 3.4e-3 with the nodal normal). The nodal normal removes it 
 every case tested; the Reference examples have not been converted.
 
 Example 7 runs the explicit scheme of Example 6 on Zalesak's slotted disk in
-solid-body rotation for one revolution (about 9 minutes on the 200 x 200 mesh), and
+solid-body rotation for one revolution (about 9 minutes on the 200 x 200 mesh;
+`elementwise_normal.sh` reruns it with the element-wise normal, results in
+`output/elementwise_normal/`), and
 Example 11 runs the semi-implicit scheme on the same problem. Reference 16 adds the
 three residual-based stabilization terms of the derivation to Example 7, along the
 flow velocity and along the sharpening velocity, all evaluated at the previous level,
