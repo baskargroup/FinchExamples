@@ -19,4 +19,11 @@ end
 cb = colorbar(ax); cb.Layout.Tile = 'east';
 cb.Label.String = 'Phase field (\phi)'; cb.Label.Color = S.ink;
 cb.Color = S.ink2; cb.TickDirection = 'in';
-S.save(fig, 'Figure2_TimeSeries.pdf');
+if nx > 400
+    % nine filled contours on a fine grid are too much for a vector PDF
+    % (the export comes out blank), so write an image PDF instead
+    exportgraphics(fig, S.file('Figure2_TimeSeries.pdf'), ...
+                   'ContentType', 'image', 'Resolution', 300, 'BackgroundColor', 'w');
+else
+    S.save(fig, 'Figure2_TimeSeries.pdf');
+end

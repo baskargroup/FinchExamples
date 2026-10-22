@@ -14,11 +14,10 @@ nsnap = size(PHI,2);
 xc  = 0.5;  yc = 0.75;       % drop centre
 R   = 0.15;                  % drop radius
 Tp  = 4;                     % period of the velocity field
-dx  = min(diff(unique(x)));  % mesh size (eps = dx in main.jl)
-eps = dx;
+dx  = min(diff(unique(x)));  % mesh size
 
-% Regular grid for contour plotting
-nx = 400; ny = 400;
+% Regular grid for contour plotting, at least twice as fine as the mesh
+nx = max(400, 2*round(1/dx)); ny = nx;
 xq = linspace(min(x), max(x), nx);
 yq = linspace(min(y), max(y), ny);
 [Xq, Yq] = meshgrid(xq, yq);

@@ -30,6 +30,11 @@ S.axes   = @style_axes;
 % script. Deriving it from the script's own path keeps these helpers
 % working whatever the current directory happens to be.
 outdir   = fullfile(fileparts(mfilename('fullpath')), '..', 'output');
+% CDI_OUTDIR (as set by paper512.sh, relative to the example folder) selects
+% another results folder, e.g.  setenv('CDI_OUTDIR', 'output/paper_512')
+if ~isempty(getenv('CDI_OUTDIR'))
+    outdir = fullfile(fileparts(mfilename('fullpath')), '..', getenv('CDI_OUTDIR'));
+end
 S.file   = @(name) fullfile(outdir, name);
 S.load   = @(name) readmatrix(fullfile(outdir, name));
 S.save   = @(fig, name) exportgraphics(fig, fullfile(outdir, name), ...

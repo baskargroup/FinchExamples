@@ -74,10 +74,11 @@ Mirjalili et al. (JCP 401, 2020, Section 4.3.1): a drop of radius 0.15 at
 `(1/pi) sin^2(pi x) sin^2(pi y) cos(pi t/T)`, T = 4. The drop is stretched into a
 thin spiral up to T/2 and returns to its initial shape at T, where the L1 (shape)
 error is measured. Their Figure 4 shows the most stretched state, t = T/2.
-Example 8 also has `paper512.sh`, the paper's parameters (eps/dx = 0.7,
-gamma/|u|max = 2.5) on a 512 x 512 mesh, results in `output/paper_512/` (about 4
-hours; 71,680 steps); set `CDI_OUTDIR=output/paper_512` before running the MATLAB
-scripts to plot it.
+Examples 8 and 12 also have `paper512.sh`, the paper's parameters (eps/dx = 0.7,
+gamma/|u|max = 2.5) on a 512 x 512 mesh, results in `output/paper_512/`: explicit
+about 4 hours (71,680 steps, L1 5.5e-4), semi-implicit about 2.5 hours (8,192
+steps, L1 5.1e-4; phi up to 1.0018 inside the drop while the flow is fast). Set
+`CDI_OUTDIR=output/paper_512` before running the MATLAB scripts to plot it.
 
 ## Setup, once
 

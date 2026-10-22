@@ -48,8 +48,12 @@ using Finch
 
 initFinch("cdi2dsheardropimplicit");
 
-# results are written to output/, a folder kept in the repo
-useLog("cdi2dsheardropimplicitlog", dir="output", level=2)
+# Results are written to output/, a folder kept in the repo. The mesh, the
+# interface parameters and the output folder can be overridden from the
+# environment (see paper512.sh); the defaults are the 200 x 200 case.
+outdir = get(ENV, "CDI_OUTDIR", "output")
+mkpath(outdir)
+useLog("cdi2dsheardropimplicitlog", dir=outdir, level=2)
 
 domain(2)
 functionSpace(order=1)
@@ -59,7 +63,7 @@ functionSpace(order=1)
 # so it is assembled each time and solved with GMRES (see Example 10).
 linAlgOptions(iterative=true, method="GMRES", pc="NONE", reltol=1e-12)
 
-nel = 200
+nel = parse(Int, get(ENV, "CDI_NEL", "200"))
 mesh(QUADMESH, elsperdim=nel)      # unit square
 
 phi   = variable("phi")    # unknown: the current Picard iterate
@@ -72,8 +76,8 @@ testSymbol("v")
 # Physical parameters
 dx   = 1.0/nel
 umax = 1.0                 # largest |u| over space and time (at t = 0 and T)
-gam  = 1.0                 # sharpening parameter gamma
-eps  = dx                  # interface thickness (eps/dx >= (u/gamma + 1)/2)
+gam  = parse(Float64, get(ENV, "CDI_GAMMA", "1.0"))*umax    # sharpening parameter gamma
+eps  = parse(Float64, get(ENV, "CDI_EPS_DX", "1.0"))*dx   # interface thickness (eps/dx >= (u/gamma + 1)/2)
 
 # Drop (Mirjalili et al. 2020, Section 4.3.1)
 xc = 0.5
@@ -275,10 +279,10 @@ println("relative mass change = " * string((massT - mass0)/mass0))
 using DelimitedFiles
 
 data = [x y phivals phi0 phihalf]
-writedlm("output/solution.csv", data, ',')
+writedlm(joinpath(outdir, "solution.csv"), data, ',')
 
 # Time series: columns 1-2 = x, y; columns 3.. = phi at each snapshot time
 ts = hcat(x, y, snapshots...)
-writedlm("output/solution_timeseries.csv", ts, ',')
-writedlm("output/snapshot_times.csv", snap_times, ',')
+writedlm(joinpath(outdir, "solution_timeseries.csv"), ts, ',')
+writedlm(joinpath(outdir, "snapshot_times.csv"), snap_times, ',')
 println(string(length(snap_times)) * " snapshots written")
