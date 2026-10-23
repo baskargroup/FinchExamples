@@ -52,8 +52,12 @@ using Finch
 
 initFinch("cdi2dzalesak");
 
-# results are written to output/, a folder kept in the repo
-useLog("cdi2dzalesaklog", dir="output", level=3)
+# Results are written to output/, a folder kept in the repo. The mesh, the
+# interface parameters and the output folder can be overridden from the
+# environment (see paper512.sh); the defaults are the 200 x 200 case.
+outdir = get(ENV, "CDI_OUTDIR", "output")
+mkpath(outdir)
+useLog("cdi2dzalesaklog", dir=outdir, level=3)
 
 domain(2)
 functionSpace(order=1)
@@ -64,7 +68,7 @@ timeStepper(EULER_EXPLICIT)
 # solution. The tight tolerance keeps the mass drift of 25,000 steps at round-off.
 linAlgOptions(iterative=true, method="CG", pc="NONE", reltol=1e-12)
 
-nel = 200
+nel = parse(Int, get(ENV, "CDI_NEL", "200"))
 mesh(QUADMESH, elsperdim=nel)      # unit square
 
 phi  = variable("phi")     # unknown at the new time level
@@ -75,8 +79,9 @@ testSymbol("v")
 # Physical parameters
 dx   = 1.0/nel
 umax = 0.5*sqrt(2)         # largest |u| in the square (at the corners)
-gam  = 1.0                 # sharpening parameter gamma
-eps  = dx                  # interface thickness (eps/dx >= (u/gamma + 1)/2)
+# sharpening parameter gamma: 1 by default, CDI_GAMMA * umax when given
+gam  = haskey(ENV, "CDI_GAMMA") ? parse(Float64, ENV["CDI_GAMMA"])*umax : 1.0
+eps  = parse(Float64, get(ENV, "CDI_EPS_DX", "1.0"))*dx   # interface thickness (eps/dx >= (u/gamma + 1)/2)
 
 # Slotted disk: centre, radius, slot width and the y-range of the slot. The
 # slot opens at the bottom of the disk (y = 0.6) and runs up past its centre.
@@ -283,10 +288,10 @@ println("relative mass change = " * string((massT - mass0)/mass0))
 using DelimitedFiles
 
 data = [x y phivals phi0]
-writedlm("output/solution.csv", data, ',')
+writedlm(joinpath(outdir, "solution.csv"), data, ',')
 
 # Time series: columns 1-2 = x, y; columns 3.. = phi at each snapshot time
 ts = hcat(x, y, snapshots...)
-writedlm("output/solution_timeseries.csv", ts, ',')
-writedlm("output/snapshot_times.csv", snap_times, ',')
+writedlm(joinpath(outdir, "solution_timeseries.csv"), ts, ',')
+writedlm(joinpath(outdir, "snapshot_times.csv"), snap_times, ',')
 println(string(length(snap_times)) * " snapshots written")

@@ -6,3 +6,7 @@ Slides/
 # Reference paper (copyrighted) and local Claude Code settings, kept local
 /cdi_Mirjalili.pdf
 /.claude/
+
+# Literature search notes and reports, kept local
+/reports/
+/research_notes/

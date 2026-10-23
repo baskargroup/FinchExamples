@@ -19,6 +19,7 @@ Julia finite element package.
 | `Example10_ConservativeDiffusiveInterfaceImplicitCircle2D` | CDI, semi-implicit, as derived: circle in uniform flow |
 | `Example11_ConservativeDiffusiveInterfaceImplicitZalesak2D` | CDI, semi-implicit (as Example 10): Zalesak's slotted disk, one revolution |
 | `Example12_ConservativeDiffusiveInterfaceImplicitShearDrop2D` | CDI, semi-implicit (as Example 11): drop in a time-reversed shear (vortex) flow, one period |
+| `Example13_InterfaceNormalFDvsFEM` | The CDI interface normal by finite differences (forward, backward, central) and linear finite elements (element-wise, nodal) on a fixed field |
 | `Reference/Example10_ConservativeDiffusiveInterfaceImplicitLagged1D` | as Example 9 with the sharpening term fully lagged |
 | `Reference/Example11_ConservativeDiffusiveInterfaceImplicitLagged2D` | as Example 10 with the sharpening term fully lagged |
 | `Reference/Example12_ConservativeDiffusiveInterfaceVMS1D` | as Example 9 with VMS stabilization (residual-based, tau from the derivation) |
@@ -79,6 +80,16 @@ gamma/|u|max = 2.5) on a 512 x 512 mesh, results in `output/paper_512/`: explici
 about 4 hours (71,680 steps, L1 5.5e-4), semi-implicit about 2.5 hours (8,192
 steps, L1 5.1e-4; phi up to 1.0018 inside the drop while the flow is fast). Set
 `CDI_OUTDIR=output/paper_512` before running the MATLAB scripts to plot it.
+Example 7 has the same `paper512.sh` for Zalesak's disk: explicit, about 4 hours
+(79,616 steps, L1 7.9e-4, phi stays in [0, 1]).
+
+Example 13 shows why the examples use the nodal normal. On a tanh profile with
+eps = h (1D, and a disk in 2D), on the same nodes for every method, it checks
+that the linear element-wise gradient is the forward/backward difference of
+that element and the nodal gradient is the central difference (exactly in 1D;
+in 2D averaged over neighbouring rows with weights 1/6, 2/3, 1/6). Angle error
+of the normal on the disk: one-sided and element-wise 20 degrees, central
+difference (Mirjalili et al.) 2, nodal 0.07. It takes under a minute.
 
 ## Setup, once
 
