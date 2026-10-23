@@ -1,0 +1,8 @@
+# The folder is committed (empty) so the scripts can rely on it;
+# everything written into it is not.
+output/*
+!output/.gitkeep
+
+# Finch generated code, if code generation is ever switched on
+*codeout*
+*code.jl
