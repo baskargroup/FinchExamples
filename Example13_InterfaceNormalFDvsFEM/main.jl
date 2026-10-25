@@ -17,8 +17,10 @@
 #                    the element's nodes: a node shared by several elements
 #                    gets several different values (the jump)
 #     nodal          lumped L2 projection of the element gradients onto the
-#                    nodal basis, then normalized at the nodes (recover_nhat!
-#                    of Examples 5-12): one continuous value per node
+#                    nodal basis, then normalized at the nodes (the
+#                    recover_nhat! of the V1 Examples 5-12; the Finch V2
+#                    examples project with the consistent mass matrix): one
+#                    continuous value per node
 #
 # The analogy being demonstrated, on a uniform grid:
 #   - linear element-wise gradient at a node = the one-sided difference of
@@ -47,8 +49,11 @@
 # The interface is placed off the nodes (x0 and the centre are shifted by a
 # fraction of h) so that no method is helped by symmetry.
 #
+# Finch V2 provides the mesh, the node numbering and the reference element;
+# nothing is solved.
+#
 # Run as (one dimension per Finch session; run.sh runs both):
-#   CDI_DIM=1|2  julia --project=../Finch_patched main.jl
+#   CDI_DIM=1|2  julia +1.12 --project=$FINCH_V2_DIR main.jl
 #==============================================================================#
 
 using Finch
@@ -57,17 +62,16 @@ using DelimitedFiles
 const DIM   = parse(Int, get(ENV, "CDI_DIM", "2"))
 tag = string(DIM) * "d"
 
-initFinch("normal" * tag);
-useLog("normal" * tag * "log", dir="output", level=1)
+const OUT_DIR = joinpath(@__DIR__, "output")
+
+ctx = init_finch("normal" * tag)
 
 domain(DIM)
-functionSpace(order=1)
 
 const NNODE = 40                  # elements (node intervals) per direction
 const h     = 1.0/NNODE
-mesh(DIM == 1 ? LINEMESH : QUADMESH, elsperdim=NNODE)
-
-phi = variable("phi")             # Finch needs one variable to build the problem
+mesh(DIM == 1 ? MESH_LINE : MESH_QUAD; elsperdim = NNODE)
+function_space(order = 1)
 
 # Test field
 const eps = h                     # interface thickness, as in the examples
@@ -83,25 +87,37 @@ phi2d(x, y) = 0.5*(1 - tanh((rad(x, y) - R)/(2*eps)))
 # exact unit normal grad(phi)/|grad(phi)|: towards the centre
 nexact(x, y) = (-(x - xc)/rad(x, y), -(y - yc)/rad(x, y))
 
-const grid  = Finch.finch_state.grid_data
-const refel = Finch.finch_state.refel
-const geo   = Finch.finch_state.geo_factors
+const grid  = ctx.grid
+const refel = ctx.refels[1]
 const Np    = refel.Np
-const Nqp   = refel.Nqp
-const nodes = grid.allnodes
-const nn    = size(nodes, 2)
-const ne    = size(grid.loc2glb, 2)
+const Nqp   = refel.Nq
+const nodes = grid.nodes
+const nn    = grid.nnodes
+const ne    = grid.nel
+
+# Derivatives of the linear (bi)linear basis at the element's own nodes, the
+# reference nodes r_i, s_i = +-1:  1D d(psi_i)/dr = r_i/2;  2D
+# d(psi_i)/dr = r_i*(1 + s*s_i)/4 and d(psi_i)/ds = s_i*(1 + r*r_i)/4 at node (r, s)
+const rn = refel.nodes
+const Ddr = DIM == 1 ? [rn[1, i]/2 for a = 1:Np, i = 1:Np] :
+                       [rn[1, i]*(1 + rn[2, a]*rn[2, i])/4 for a = 1:Np, i = 1:Np]
+const Dds = DIM == 1 ? zeros(Np, Np) :
+                       [rn[2, i]*(1 + rn[1, a]*rn[1, i])/4 for a = 1:Np, i = 1:Np]
 
 # Nodal values of the test field
 p = DIM == 1 ? [phi1d(nodes[1, k]) for k = 1:nn] :
                [phi2d(nodes[1, k], nodes[2, k]) for k = 1:nn]
 
-# Jacobian entries of element e (constant per element on this mesh); in 1D
-# Finch leaves the y-parts empty
+# Jacobian entries of element e and its determinant: the mesh is uniform and
+# axis-aligned, so the reference element [-1, 1]^DIM maps by a scaling,
+# rx = 2/hx, sy = 2/hy, ry = sx = 0
 function jac(e)
-    J = geo.J[e]
-    DIM == 1 && return J.rx[1], 0.0, 0.0, 0.0
-    return J.rx[1], J.ry[1], J.sx[1], J.sy[1]
+    xe = nodes[1, grid.loc2glb[:, e]]
+    hx = maximum(xe) - minimum(xe)
+    DIM == 1 && return 2/hx, 0.0, 0.0, 0.0, hx/2
+    ye = nodes[2, grid.loc2glb[:, e]]
+    hy = maximum(ye) - minimum(ye)
+    return 2/hx, 0.0, 0.0, 2/hy, hx*hy/4
 end
 
 # Element-wise gradient at each element's own nodes: Ddr, Dds are the
@@ -111,10 +127,10 @@ function elementwise_gradient(p)
     rows = zeros(ne*Np, 2 + 2*DIM)          # e, node, x(,y), gx(,gy)
     k = 0
     for e = 1:ne
-        rx, ry, sx, sy = jac(e)
+        rx, ry, sx, sy, _ = jac(e)
         pe = p[grid.loc2glb[:, e]]
-        dr = refel.Ddr * pe
-        ds = DIM == 2 ? refel.Dds * pe : zeros(Np)
+        dr = Ddr * pe
+        ds = DIM == 2 ? Dds * pe : zeros(Np)
         for i = 1:Np
             k += 1
             g = grid.loc2glb[i, e]
@@ -131,21 +147,20 @@ function elementwise_gradient(p)
 end
 
 # Nodal gradient: lumped L2 projection of the element gradient onto the
-# nodal basis (the recover_nhat! of Examples 5-12, in 1D or 2D):
+# nodal basis (the recover_nhat! of the V1 Examples 5-12, in 1D or 2D):
 #     g_l = sum_e int_e (dphi_h/dx) psi_l / sum_e int_e psi_l
 function nodal_gradient(p)
     lump = zeros(nn)
     gx = zeros(nn); gy = zeros(nn)
     for e = 1:ne
-        rx, ry, sx, sy = jac(e)
-        detj = geo.detJ[1, e]
+        rx, ry, sx, sy, detj = jac(e)
         pe   = p[grid.loc2glb[:, e]]
         dr = refel.Qr * pe                   # d/dr at the quadrature points
         ds = DIM == 2 ? refel.Qs * pe : zeros(Nqp)
         for i = 1:Np
             l = grid.loc2glb[i, e]
             for q = 1:Nqp
-                w = refel.wg[q] * refel.Q[q, i] * detj
+                w = refel.qweights[q] * refel.Q[q, i] * detj
                 lump[l] += w
                 gx[l]   += w * (dr[q]*rx + ds[q]*sx)
                 gy[l]   += w * (dr[q]*ry + ds[q]*sy)
@@ -237,17 +252,16 @@ check_identities()
 # Output
 if DIM == 1
     x = nodes[1, :]
-    writedlm("output/1d_nodal.csv", [x p ngx dphi1d.(x)], ',')
-    writedlm("output/1d_elem.csv", ew, ',')
-    writedlm("output/1d_fd.csv", [x p fwd bwd cen dphi1d.(x)], ',')
+    writedlm(joinpath(OUT_DIR, "1d_nodal.csv"), [x p ngx dphi1d.(x)], ',')
+    writedlm(joinpath(OUT_DIR, "1d_elem.csv"), ew, ',')
+    writedlm(joinpath(OUT_DIR, "1d_fd.csv"), [x p fwd bwd cen dphi1d.(x)], ',')
 else
     x = nodes[1, :]; y = nodes[2, :]
     ex = [nexact(x[k], y[k]) for k = 1:nn]
-    writedlm("output/2d_nodal.csv", [x y p ngx ngy first.(ex) last.(ex)], ',')
-    writedlm("output/2d_elem.csv", ew, ',')
-    writedlm("output/2d_fd.csv",
+    writedlm(joinpath(OUT_DIR, "2d_nodal.csv"), [x y p ngx ngy first.(ex) last.(ex)], ',')
+    writedlm(joinpath(OUT_DIR, "2d_elem.csv"), ew, ',')
+    writedlm(joinpath(OUT_DIR, "2d_fd.csv"),
              [x y p fwd[:, 1] fwd[:, 2] bwd[:, 1] bwd[:, 2] cen[:, 1] cen[:, 2]], ',')
 end
 
-finalizeFinch()
 println("wrote output for $(DIM)D: $(nn) nodes, $(ne) elements")

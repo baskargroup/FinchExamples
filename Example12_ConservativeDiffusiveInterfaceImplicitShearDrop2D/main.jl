@@ -1,5 +1,6 @@
 #==============================================================================#
-# 2D Conservative Diffusive Interface (CDI) model, semi-implicit, in Finch:
+# 2D Conservative Diffusive Interface (CDI) model, semi-implicit, with
+# Finch V2 (Julia target):
 # a drop in a time-reversed shear (vortex) flow.
 #
 #   theta1*phi_t + theta2*(1/2)*[div(u*phi) + u.grad(phi)]
@@ -16,12 +17,17 @@
 #   - sharpening linearized with a lagged field phis, as derived:
 #       gamma*(phi - phi^2)*nhat ~ gamma*phi*(1 - phis)*nhat(phis)
 #   - iteration 1 uses phis = phio, iteration 2 uses phis = the result of
-#     iteration 1. Each iteration is one linear solve (GMRES); the matrix
+#     iteration 1. Each iteration is one linear solve (BiCGSTAB); the matrix
 #     depends on phis, so it is rebuilt for iteration 2.
+#   - one step is a step_schedule, as in Examples 9-11: phi is solved as a
+#     quasi-static equation whose time derivative is the BDF formula over the
+#     known fields phio and phioo, and update entries move the history, the
+#     lagged field and the BDF coefficients along. Under STEP_EULER_IMPLICIT
+#     Finch evaluates the solves at t^{n+1}, which sets the velocity's time.
 #
-# Interface normal: recovered at the NODES by a lumped L2 projection of the
-# finite element gradient of phis, refreshed before each solve (as in
-# Examples 5-11).
+# Interface normal: recovered at the NODES by an L2 projection of the finite
+# element gradient of phis, one field per component, refreshed before each
+# solve (as in Examples 5-11; consistent mass, Finch V2 has no lumped one).
 #
 # Test problem (Mirjalili et al. 2020, Section 4.3.1): a drop of radius
 # R = 0.15 centred at (0.5, 0.75) in the unit square, in the velocity of the
@@ -45,244 +51,145 @@
 #==============================================================================#
 
 using Finch
+using DelimitedFiles
 
-initFinch("cdi2dsheardropimplicit");
-
-# Results are written to output/, a folder kept in the repo. The mesh, the
-# interface parameters and the output folder can be overridden from the
-# environment (see paper512.sh); the defaults are the 200 x 200 case.
-outdir = get(ENV, "CDI_OUTDIR", "output")
-mkpath(outdir)
-useLog("cdi2dsheardropimplicitlog", dir=outdir, level=2)
-
-domain(2)
-functionSpace(order=1)
-# No timeStepper() call: Finch sees a steady problem. Time stepping is below.
-
-# The matrix changes every Picard iteration and is not symmetric (advection),
-# so it is assembled each time and solved with GMRES (see Example 10).
-linAlgOptions(iterative=true, method="GMRES", pc="NONE", reltol=1e-12)
-
-nel = parse(Int, get(ENV, "CDI_NEL", "200"))
-mesh(QUADMESH, elsperdim=nel)      # unit square
-
-phi   = variable("phi")    # unknown: the current Picard iterate
-phio  = variable("phio")   # known: previous time level
-phioo = variable("phioo")  # known: two time levels back
-phis  = variable("phis")   # known: lagged field for the sharpening term
-nhat  = variable("nhat", type=VECTOR)   # known: nodal unit normal, built from phis
-testSymbol("v")
+# Results are written to output/ (Finch's generated project to output/finch/).
+# The mesh, the interface parameters and the output folder can be overridden
+# from the environment (see paper512.sh); the defaults are the 200 x 200 case.
+const OUT_DIR  = joinpath(@__DIR__, get(ENV, "CDI_OUTDIR", "output"))
+const PROJ_DIR = joinpath(OUT_DIR, "finch")
+mkpath(PROJ_DIR)
 
 # Physical parameters
-dx   = 1.0/nel
-umax = 1.0                 # largest |u| over space and time (at t = 0 and T)
-gam  = parse(Float64, get(ENV, "CDI_GAMMA", "1.0"))*umax    # sharpening parameter gamma
-eps  = parse(Float64, get(ENV, "CDI_EPS_DX", "1.0"))*dx   # interface thickness (eps/dx >= (u/gamma + 1)/2)
+const NEL  = parse(Int, get(ENV, "CDI_NEL", "200"))
+const DX   = 1.0/NEL
+const UMAX = 1.0                # largest |u| over space and time (at t = 0 and T)
+const GAM  = parse(Float64, get(ENV, "CDI_GAMMA", "1.0"))*UMAX    # sharpening parameter gamma
+const EPS  = parse(Float64, get(ENV, "CDI_EPS_DX", "1.0"))*DX     # interface thickness (eps/dx >= (u/gamma + 1)/2)
 
 # Drop (Mirjalili et al. 2020, Section 4.3.1)
-xc = 0.5
-yc = 0.75
-R  = 0.15
-
-drop_ic(x, y) = 0.5*(1 - tanh((sqrt((x - xc)^2 + (y - yc)^2) - R)/(2*eps)))
-
-# Zero total flux through the walls. Finch needs the declaration even though
-# nothing is imposed.
-boundary(phi, 1, NO_BC)
-
-initial(phi, "Main.drop_ic(x, y)")
+const XC = 0.5
+const YC = 0.75
+const R  = 0.15
+drop_ic(x, y) = 0.5*(1 - tanh((sqrt((x - XC)^2 + (y - YC)^2) - R)/(2*EPS)))
 
 # Time step from the advective CFL number with the largest speed; CFL 0.25
 # as in Examples 9-11. One full period of the flow.
-T   = 4.0
-CFL = 0.25
-dt  = CFL*dx/umax
-nsteps = Int(round(T/dt))
-dt  = T/nsteps                     # land exactly on t = T
+const T      = 4.0
+const CFL    = 0.25
+const NSTEPS = Int(round(T/(CFL*DX/UMAX)))
+const DT     = T/NSTEPS             # land exactly on t = T
 
-# Time factor of the velocity, cos(pi*t/T), set to its value at the new time
-# level before each step and read by Finch at every assembly
-const VEL_C = Ref(1.0)
-set_velocity!(t) = (VEL_C[] = cos(pi*t/T))
-# The velocity is given to Finch as calls to these functions. Reading the time
-# factor from a typed const Ref keeps them type-stable; an untyped global read
-# from the coefficient strings made each step 1.3 times slower here (2.3
-# times in the explicit Example 8).
-ux(x, y) = -VEL_C[]*sin(pi*x)^2*sin(2*pi*y)
-uy(x, y) =  VEL_C[]*sin(2*pi*x)*sin(pi*y)^2
+# The matrix changes every Picard iteration and is not symmetric (advection):
+# BiCGSTAB (see Example 10).
+ctx = init_finch("cdi2dimplicitsheardrop"; verbose = true, solver = :bicgstab, solver_tol = 1e-12,
+                 target = JuliaCPUTarget(out_dir = PROJ_DIR, func_name = "cdi2dimplicitsheardrop"))
 
-# BDF coefficients, divided by dt, read by Finch at every assembly
-a0_dt = 1.0/dt;  a1_dt = -1.0/dt;  a2_dt = 0.0           # BDF1
-bdf2!() = (global a0_dt = 1.5/dt; global a1_dt = -2.0/dt; global a2_dt = 0.5/dt)
+domain(2)
+mesh(MESH_QUAD; elsperdim = NEL)   # unit square
+function_space(order = 1)
+
+phi   = variable("phi")     # unknown: the current Picard iterate
+phio  = variable("phio")    # previous time level
+phioo = variable("phioo")   # two time levels back
+phis  = variable("phis")    # lagged field for the sharpening term
+gx    = variable("gx")      # projected gradient of phis, x component
+gy    = variable("gy")      # and y component
+a0    = variable("a0")      # BDF coefficients over dt, as fields: BDF1 on
+a1    = variable("a1")      # the first step, switched to BDF2 by an update
+a2    = variable("a2")
+test_symbol("v")
+
+# Zero total flux through the walls: no boundary condition and no boundary
+# integral, so nothing is declared.
+
+# Initial condition, in every level
+for f in (phi, phio, phioo, phis)
+    initial(f, (x, y, z, t) -> drop_ic(x, y))
+end
+initial(a0, 1.0/DT); initial(a1, -1.0/DT); initial(a2, 0.0)
 
 # Coefficients (theta as in the derivation, dimensional form)
 coefficient("theta1", 1.0)
 coefficient("theta2", 1.0)
 coefficient("theta3", 1.0)
 coefficient("theta4", 1.0)
-coefficient("u", ["Main.ux(x, y)", "Main.uy(x, y)"], type=VECTOR)   # vortex
-coefficient("gamma", gam)
-coefficient("epsilon", eps)
-coefficient("a0dt", "Main.a0_dt")
-coefficient("a1dt", "Main.a1_dt")
-coefficient("a2dt", "Main.a2_dt")
+# The vortex, reversed by cos(pi*t/T), at the new time level
+coefficient("u", [(x, y, z, t) -> -sin(pi*x)^2*sin(2*pi*y)*cos(pi*t/T),
+                  (x, y, z, t) ->  sin(2*pi*x)*sin(pi*y)^2*cos(pi*t/T)])
+coefficient("gamma", GAM)
+coefficient("epsilon", EPS)
+coefficient("delta", 1e-12)     # keeps nhat finite where grad(phis) = 0
+coefficient("ex", [(x, y, z, t) -> 1.0, (x, y, z, t) -> 0.0])   # unit vectors, to
+coefficient("ey", [(x, y, z, t) -> 0.0, (x, y, z, t) -> 1.0])   # pick components
 
-# Nodal interface normal by finite element gradient recovery (lumped L2
-# projection), identical to Examples 7, 10 and 11
-const g_grid  = Finch.finch_state.grid_data
-const g_refel = Finch.finch_state.refel
-const g_geo   = Finch.finch_state.geo_factors
-const g_Np    = g_refel.Np
-const g_Nqp   = g_refel.Nqp
-const g_nnode = size(g_grid.allnodes, 2)
-const g_nel   = size(g_grid.loc2glb, 2)
-# lumped mass: int psi_l, assembled once
-const g_lump = zeros(g_nnode)
-for e = 1:g_nel
-    detj = g_geo.detJ[1, e]
-    for i = 1:g_Np
-        acc = 0.0
-        for q = 1:g_Nqp
-            acc += g_refel.wg[q] * g_refel.Q[q, i]
-        end
-        g_lump[g_grid.loc2glb[i, e]] += acc * detj
-    end
-end
-const g_gx = zeros(g_nnode)
-const g_gy = zeros(g_nnode)
-const g_pe = zeros(g_Np)
-const g_dr = zeros(g_Nqp)
-const g_ds = zeros(g_Nqp)
+# The time loop; every entry is quasi-static, the stepper only sets dt.
+# Snapshots: 64 over the period plus t = 0; the one at T/2 is the most
+# stretched state.
+time_interval(T)
+time_stepper(STEP_EULER_IMPLICIT; dt = DT, store_trajectory = true,
+             snapshot_every = max(1, NSTEPS ÷ 64))
 
-# Project the gradient of the nodal field p onto the nodes, then normalize.
-function recover_nhat!(nhatvals, p, delta)
-    fill!(g_gx, 0.0); fill!(g_gy, 0.0)
-    @inbounds for e = 1:g_nel
-        J = g_geo.J[e]                      # constant Jacobian on this mesh
-        rx = J.rx[1]; ry = J.ry[1]; sx = J.sx[1]; sy = J.sy[1]
-        detj = g_geo.detJ[1, e]
-        for i = 1:g_Np
-            g_pe[i] = p[g_grid.loc2glb[i, e]]
-        end
-        for q = 1:g_Nqp
-            dr = 0.0; ds = 0.0
-            for i = 1:g_Np
-                dr += g_refel.Qr[q, i] * g_pe[i]
-                ds += g_refel.Qs[q, i] * g_pe[i]
-            end
-            g_dr[q] = dr; g_ds[q] = ds
-        end
-        for i = 1:g_Np
-            ax = 0.0; ay = 0.0
-            for q = 1:g_Nqp
-                w  = g_refel.wg[q] * g_refel.Q[q, i]
-                ax += w * (g_dr[q]*rx + g_ds[q]*sx)
-                ay += w * (g_dr[q]*ry + g_ds[q]*sy)
-            end
-            k = g_grid.loc2glb[i, e]
-            g_gx[k] += ax * detj
-            g_gy[k] += ay * detj
-        end
-    end
-    @inbounds for k = 1:g_nnode
-        gx = g_gx[k] / g_lump[k]
-        gy = g_gy[k] / g_lump[k]
-        m  = sqrt(gx*gx + gy*gy + delta)
-        nhatvals[1, k] = gx/m
-        nhatvals[2, k] = gy/m
-    end
-    return nothing
-end
+# nhat . grad(v), with nhat from the projected gradient of phis
+const NDOTGV = "(gx*dot(ex, grad(v)) + gy*dot(ey, grad(v)))*pow(gx*gx + gy*gy + delta, -0.5)"
 
 # Weak form of one Picard iteration (residual = 0):
-#   theta1*(a0/dt*phi, v) + theta1*((a1*phio + a2*phioo)/dt, v)   time derivative
-#   - theta2/2*(u*phi, grad v)                                    advection, conservative half
-#   - theta2/2*(phi, u.grad v)                                    other half (div(u) = 0)
-#   + theta3*(gamma*eps*grad phi, grad v)                         diffusion
-#   - theta4*(gamma*phi*(1 - phis)*nhat(phis), grad v)            sharpening, lagged
+#   theta1*(a0*phi + a1*phio + a2*phioo, v)          time derivative (BDF)
+#   - theta2/2*(u*phi, grad v)                        advection, conservative half
+#   - theta2/2*(phi, u.grad v)                        other half (div(u) = 0)
+#   + theta3*(gamma*eps*grad phi, grad v)             diffusion
+#   - theta4*(gamma*phi*(1 - phis)*nhat(phis), grad v)  sharpening, lagged
 # No boundary term and no boundary condition: zero total flux through the walls.
-weakForm(phi, "theta1*a0dt*phi*v" *
-              " + theta1*(a1dt*phio + a2dt*phioo)*v" *
-              " - 0.5*theta2*phi*dot(u, grad(v))" *
-              " - 0.5*theta2*phi*dot(u, grad(v))" *
-              " + theta3*gamma*epsilon*dot(grad(phi), grad(v))" *
-              " - theta4*gamma*phi*(1 - phis) .* dot(nhat, grad(v))")
+weak_form(gx, "gx*v - dot(grad(phis), ex)*v")
+weak_form(gy, "gy*v - dot(grad(phis), ey)*v")
+weak_form(phi, "theta1*(a0*phi + a1*phio + a2*phioo)*v" *
+               " - 0.5*theta2*phi*dot(u, grad(v))" *
+               " - 0.5*theta2*phi*dot(u, grad(v))" *
+               " + theta3*gamma*epsilon*dot(grad(phi), grad(v))" *
+               " - theta4*gamma*phi*(1 - phis)*" * NDOTGV)
 
-# Snapshots for the time series: 64 over the period plus t = 0
-snap_every = max(1, nsteps ÷ 64)
-snapshots  = Vector{Vector{Float64}}()
-snap_times = Float64[]
-
-# Start: all history levels equal the initial condition
-evalInitialConditions()
-phio.values  .= phi.values
-phioo.values .= phi.values
-phis.values  .= phi.values
-phi0 = copy(phi.values[:])         # the exact solution at t = T
-push!(snapshots, copy(phi0))
-push!(snap_times, 0.0)
-
-# Lumped finite element weights (half at an edge node, quarter at a corner)
-nodes = Finch.finch_state.grid_data.allnodes
-wts = fill(dx*dx, size(nodes, 2))
-for i = 1:size(nodes, 2)
-    if nodes[1,i] < 1e-12 || nodes[1,i] > 1 - 1e-12; wts[i] *= 0.5; end
-    if nodes[2,i] < 1e-12 || nodes[2,i] > 1 - 1e-12; wts[i] *= 0.5; end
-end
-mass0 = sum(wts .* phi0)
-
-# Time loop. Two Picard iterations per step, then shift the history.
-t0 = time()
-for step = 1:nsteps
-    if step == 2
-        bdf2!()                          # BDF1 only on the first step
-    end
-    set_velocity!(step*dt)               # velocity at the new time level
-    phis.values .= phio.values           # iteration 1: lag with the previous level
-    recover_nhat!(nhat.values, phis.values, 1e-12)
-    solve(phi)
-    phis.values .= phi.values            # iteration 2: lag with iteration 1
-    recover_nhat!(nhat.values, phis.values, 1e-12)
-    solve(phi)
-    phioo.values .= phio.values          # shift history
-    phio.values  .= phi.values
-    if step == nsteps ÷ 2
-        global phihalf = copy(phi.values[:])   # the most stretched state, t = T/2
-    end
-    if step % snap_every == 0
-        push!(snapshots, copy(phi.values[:]))
-        push!(snap_times, step*dt)
-    end
-    if step % 100 == 0 || step == nsteps
-        println("step $step / $nsteps   t = $(round(step*dt, digits=4))   elapsed $(round(time() - t0, digits=1)) s")
-        flush(stdout)
-    end
-end
-
-finalizeFinch()
+# One step: two Picard iterations, then shift the history
+step_schedule(update(phis => "phio"), gx, gy, phi,     # iteration 1: lag with the previous level
+              update(phis => "phi"),  gx, gy, phi,     # iteration 2: lag with iteration 1
+              update(phioo => "phio"), update(phio => "phi"),
+              update(a0 => "$(1.5/DT)"), update(a1 => "$(-2.0/DT)"), update(a2 => "$(0.5/DT)"),
+              monitor("mass", "phi"))
+solve()
+Finch.run_emitted_julia!(ctx.target, phi)
 
 # Error after one period, against the initial field
-x = nodes[1, :]
-y = nodes[2, :]
-phivals = phi.values[:]
-err = phivals .- phi0
+x = ctx.grid.nodes[1, :]
+y = ctx.grid.nodes[2, :]
+results = joinpath(PROJ_DIR, "results")
+_, snaps = Finch.read_results_manifest(results)
+snapshots  = [Finch.load_snapshot_values(results, s)["phi"] for s in snaps]
+snap_times = [Float64(s["t"]) for s in snaps]
+phi0    = snapshots[1]          # the exact solution at t = T
+phihalf = snapshots[argmin(abs.(snap_times .- T/2))]   # the most stretched state
+phivals = phi.values[1, :]
 
+# Lumped finite element weights (half at an edge node, quarter at a corner)
+wts = fill(DX*DX, length(x))
+for i in eachindex(x)
+    if x[i] < 1e-12 || x[i] > 1 - 1e-12; wts[i] *= 0.5; end
+    if y[i] < 1e-12 || y[i] > 1 - 1e-12; wts[i] *= 0.5; end
+end
+err = phivals .- phi0
 maxerr = maximum(abs.(err))
 l1err  = sum(wts .* abs.(err))            # shape error, Eq. 41 of the paper
-massT  = sum(wts .* phivals)
-println("dt = " * string(dt) * ", steps = " * string(nsteps) * " (CFL " * string(CFL) * ", one period T = " * string(T) * ")")
+mon = readdlm(joinpath(results, "monitors.csv"), ',', skipstart = 1)
+mass0, massT = mon[1, 3], mon[end, 3]
+println("mesh " * string(NEL) * " x " * string(NEL) * ", eps/dx = " * string(EPS/DX) * ", gamma/umax = " * string(GAM/UMAX))
+println("dt = " * string(DT) * ", steps = " * string(NSTEPS) * " (CFL " * string(CFL) * ", one period T = " * string(T) * ")")
 println("max error = " * string(maxerr))
 println("L1 (shape) error = " * string(l1err))
 println("min phi = " * string(minimum(phivals)) * ", max phi = " * string(maximum(phivals)))
 println("relative mass change = " * string((massT - mass0)/mass0))
 
-using DelimitedFiles
-
 data = [x y phivals phi0 phihalf]
-writedlm(joinpath(outdir, "solution.csv"), data, ',')
+writedlm(joinpath(OUT_DIR, "solution.csv"), data, ',')
 
 # Time series: columns 1-2 = x, y; columns 3.. = phi at each snapshot time
-ts = hcat(x, y, snapshots...)
-writedlm(joinpath(outdir, "solution_timeseries.csv"), ts, ',')
-writedlm(joinpath(outdir, "snapshot_times.csv"), snap_times, ',')
+writedlm(joinpath(OUT_DIR, "solution_timeseries.csv"), hcat(x, y, snapshots...), ',')
+writedlm(joinpath(OUT_DIR, "snapshot_times.csv"), snap_times, ',')
 println(string(length(snap_times)) * " snapshots written")

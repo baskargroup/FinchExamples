@@ -1,11 +1,10 @@
 #!/bin/zsh
 # Temporal convergence study (see convergence.jl).
-# Usage:  ./run.sh          (from any directory)
+# Usage:  ./convergence.sh          (from any directory)
+# FINCH_V2_DIR is the Finch-V2 checkout (branch mlir-batched-linalg), run with Julia 1.12.
 set -e
 set -o pipefail          # a Julia failure must not be masked by tee
-# The patched Finch that ships with this repository. Set FINCH_DIR in the
-# environment to run against a different Finch instead.
-FINCH_DIR="${FINCH_DIR:-$(cd "$(dirname "$0")/.." && pwd)/Finch_patched}"
+FINCH_V2_DIR="${FINCH_V2_DIR:-$HOME/Packages/Finch-V2}"
 cd "$(dirname "$0")"
 # tee keeps the printed results alongside the other output
-julia --project="$FINCH_DIR" convergence.jl 2>&1 | tee output/convergence_runlog.txt
+julia +1.12 --project="$FINCH_V2_DIR" convergence.jl 2>&1 | tee output/convergence_runlog.txt

@@ -1,70 +1,50 @@
 #==============================================================================#
 # 1D Poisson problem with Dirichlet boundary conditions.
-# CG, Linear element
+# CG, Linear element. Finch V2, Julia target.
 #==============================================================================#
 
 using Finch                     # Load Finch package
-
-initFinch("poisson1d");         # Initialize  1D Poisson problem setup
-
-
-# results are written to output/, a folder kept in the repo
-useLog("poisson1dlog", dir="output", level=3) # Enable logging to file
-
-# Set up the configuration
-
-domain(1)                       # Define problem as 1-dimensional
-functionSpace(order=1) 		    # polynomial order
-
-mesh(LINEMESH, elsperdim=200, bids=2)   # Create uniform 1D mesh with 200 elements
-
-u = variable("u")               # Define scalar unknown field u
-
-testSymbol("v")                 # Set test function symbol to v
-
-
-# Apply Dirichlet boundary condition
-
-boundary(u, 1, DIRICHLET, 0)
-boundary(u, 2, DIRICHLET, 0)
-
-# Write the weak form 
-# Define source term f(x)
-coefficient("f", "-100*pi*pi*sin(10*pi*x)*sin(pi*x) - pi*pi*sin(10*pi*x)*sin(pi*x) + 20*pi*pi*cos(10*pi*x)*cos(pi*x)")
-
-# Define weak form of PDE: ∫ (∇u·∇v + f*v) dx = 0
-weakForm(u, "-grad(u)*grad(v) - f*v")
-
-# Solve the PDE
-solve(u)                   
-
-finalizeFinch()   # Clean up Finch after simulation 
-
-
-# Exact solution: sin(10*pi*x)*sin(pi*x)
-# Prepare array to store error at all nodes
-allerr = zeros(size(Finch.finch_state.grid_data.allnodes, 2))
-
-for i = 1:size(Finch.finch_state.grid_data.allnodes, 2)
-   local x = Finch.finch_state.grid_data.allnodes[1, i]  # get x-coordinate of node i
-    exact = sin(10*pi*x) * sin(pi*x)                # exact solution at x
-    allerr[i] = abs(u.values[i] - exact)            # absolute error at node i
-end
-
-
-maxerr = maximum(abs, allerr)               # Compute maximum absolute error
-println("max error = " * string(maxerr))    # Print it
-
-
 using DelimitedFiles
 
-x = Finch.finch_state.grid_data.allnodes[1, :]  # x-coordinates
-uvals = u.values[:]                              # computed solution
+# results are written to output/, a folder kept in the repo; Finch's generated
+# project goes to output/finch/
+const OUT_DIR  = joinpath(@__DIR__, "output")
+const PROJ_DIR = joinpath(OUT_DIR, "finch")
+mkpath(PROJ_DIR)
 
-data = [x uvals]                                # two-column array
-writedlm("output/solution.csv", data, ',')             # write to CSV
+# Initialize 1D Poisson problem setup
+ctx = init_finch("poisson1d"; solver = :lu,
+                 target = JuliaCPUTarget(out_dir = PROJ_DIR, func_name = "poisson1d"))
 
+domain(1)                       # Define problem as 1-dimensional
+mesh(MESH_LINE; elsperdim = 200)   # Create uniform 1D mesh with 200 elements
+function_space(order = 1)       # polynomial order
 
+u = variable("u")               # Define scalar unknown field u
+test_symbol("v")                # Set test function symbol to v
 
+# Apply Dirichlet boundary condition
+boundary(u, 1, BC_DIRICHLET, 0.0)
+boundary(u, 2, BC_DIRICHLET, 0.0)
 
+# Define source term f(x)
+coefficient("f", (x, y, z, t) -> -100*pi*pi*sin(10*pi*x)*sin(pi*x) - pi*pi*sin(10*pi*x)*sin(pi*x) +
+                                 20*pi*pi*cos(10*pi*x)*cos(pi*x))
 
+# Define weak form of PDE: ∫ (∇u·∇v + f*v) dx = 0
+weak_form(u, "-grad(u)*grad(v) - f*v")
+
+# Solve the PDE
+solve(u)
+Finch.run_emitted_julia!(ctx.target, u)
+
+# Exact solution: sin(10*pi*x)*sin(pi*x)
+x = ctx.grid.nodes[1, :]                     # x-coordinates
+uvals = u.values[1, :]                       # computed solution
+allerr = abs.(uvals .- sin.(10*pi .* x) .* sin.(pi .* x))   # absolute error at every node
+
+maxerr = maximum(allerr)                     # Compute maximum absolute error
+println("max error = " * string(maxerr))     # Print it
+
+data = [x uvals]                             # two-column array
+writedlm(joinpath(OUT_DIR, "solution.csv"), data, ',')   # write to CSV

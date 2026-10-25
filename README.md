@@ -1,7 +1,9 @@
 # FinchExamples
 
-Example problems solved with [Finch](https://paralab.github.io/Finch/dev/), a
-Julia finite element package.
+Example problems solved with Finch, a Julia finite element package. The
+examples use Finch V2 (`budvinchathura/Finch-V2`, branch `mlir-batched-linalg`)
+with its Julia target; the folders in `Reference/` still use the original
+[Finch](https://paralab.github.io/Finch/dev/) through `Finch_patched/`.
 
 ## Examples
 
@@ -33,7 +35,10 @@ overlaps the main examples) are earlier variants kept for reference; they are no
 being worked on at present. Below, "Reference N" means `Reference/ExampleN_...`.
 
 Each folder contains `main.jl` (the Finch script), `run.sh`, `matlabscripts/`
-(figure scripts) and `output/` (results; not committed). Example 9 and References
+(figure scripts) and `output/` (results; not committed). Finch V2 generates a
+Julia project for each run and solves it; that project and its raw results land
+in `output/finch/`. In Examples 9 and 10 the scheme is in `scheme.jl`, shared by
+`main.jl` and the studies below. Example 9 and References
 10, 12 and 14 also have `convergence.sh`, a temporal convergence study
 (`convergence.jl`), whose figure is `plot_Figure4_TemporalConvergence.m`. Examples 9
 and 10 also have `sharpening_sweep.sh`, a study of how the sharpening term is split
@@ -44,13 +49,23 @@ Its figures are `plot_Figure5/6` (Example 9) and `plot_Figure6/7` (Example 10), 
 
 Examples 5-8 are explicit (forward Euler). Examples 9-12 are the semi-implicit scheme
 (BDF2, two Picard iterations per step), with the sharpening term linearized as in the
-derivation, one factor implicit. In References 10 and 11 it is evaluated entirely from
+derivation, one factor implicit. Finch V2 has forward and backward Euler only, so one
+semi-implicit step is a `step_schedule`: phi is solved as a quasi-static equation whose
+time derivative is the BDF formula over the previous levels, held as fields, and
+`update` entries move the history, the lagged field and the BDF coefficients along.
+In References 10 and 11 it is evaluated entirely from
 the Picard iterate; References 14 and 15 linearize it by Newton's method about the
 Picard iterate, `phi - phi^2 ~ (1 - 2*phis)*phi + phis^2`. References 12 and 13 add the
 residual-based VMS stabilization of the derivation to Examples 9 and 10.
 
-Interface normal. Examples 5-12 recover the normal at the nodes by a lumped L2
-projection of the finite element gradient (a continuous field). References 10-16 still
+Interface normal. Examples 5-12 recover the normal at the nodes by an L2 projection of
+the finite element gradient (a continuous field), solved as its own field, one per
+component, before each step or Picard iteration. Finch V2 has no lumped mass matrix,
+so the projection uses the consistent one; the V1 versions of these examples lumped
+it. Compared on 100 x 100 meshes, V1 against V2, the L1 shape error went from 0.0126
+to 0.0077 (Example 7), 0.0141 to 0.0076 (Example 8), 0.0130 to 0.0111 (Example 11)
+and 0.0142 to 0.0074 (Example 12); Examples 5, 6, 9 and 10 agree with V1 to two to
+eight digits, as do the temporal convergence orders of Example 9. References 10-16 still
 take it element by element from the gradient of the linear basis, which is constant
 per element and jumps between elements; on grid-aligned interfaces that normal grows
 a grid-scale zigzag (on the circle of Example 10 it gave a max error of 0.128 with the
@@ -59,8 +74,8 @@ error 1.2e-2 against 3.4e-3 with the nodal normal). The nodal normal removes it 
 every case tested; the Reference examples have not been converted.
 
 Example 7 runs the explicit scheme of Example 6 on Zalesak's slotted disk in
-solid-body rotation for one revolution (about 9 minutes on the 200 x 200 mesh;
-`elementwise_normal.sh` reruns it with the element-wise normal, results in
+solid-body rotation for one revolution (`elementwise_normal.sh` reruns it with the
+element-wise normal, `CDI_NORMAL=elementwise`, results in
 `output/elementwise_normal/`), and
 Example 11 runs the semi-implicit scheme on the same problem. Reference 16 adds the
 three residual-based stabilization terms of the derivation to Example 7, along the
@@ -81,7 +96,8 @@ about 4 hours (71,680 steps, L1 5.5e-4), semi-implicit about 2.5 hours (8,192
 steps, L1 5.1e-4; phi up to 1.0018 inside the drop while the flow is fast). Set
 `CDI_OUTDIR=output/paper_512` before running the MATLAB scripts to plot it.
 Example 7 has the same `paper512.sh` for Zalesak's disk: explicit, about 4 hours
-(79,616 steps, L1 7.9e-4, phi stays in [0, 1]).
+(79,616 steps, L1 7.9e-4, phi stays in [0, 1]). These run times and errors are
+from the V1 versions; see Run time below for V2.
 
 Example 13 shows why the examples use the nodal normal. On a tanh profile with
 eps = h (1D, and a disk in 2D), on the same nodes for every method, it checks
@@ -93,19 +109,22 @@ difference (Mirjalili et al.) 2, nodal 0.07. It takes under a minute.
 
 ## Setup, once
 
-1. Install Julia. These examples were run with Julia 1.13.
-2. Clone the repository:
+1. Install Julia 1.12 (Finch V2 is developed against it), for example with
+   juliaup: `juliaup add 1.12`. The run scripts call `julia +1.12`.
+2. Clone this repository and Finch V2 (a private repository; ask for access)
+   side by side:
 
        git clone git@github.com:baskargroup/FinchExamples.git
+       git clone -b mlir-batched-linalg git@github.com:budvinchathura/Finch-V2.git ~/Packages/Finch-V2
 
-3. Install Finch's dependencies into the copy of Finch that ships with the
-   repository (downloads and precompiles, a few minutes):
+3. Install Finch V2's dependencies (downloads and precompiles, a few minutes):
 
-       cd FinchExamples/Finch_patched
-       julia --project=. -e 'using Pkg; Pkg.instantiate()'
+       cd ~/Packages/Finch-V2
+       julia +1.12 --project=. -e 'using Pkg; Pkg.instantiate()'
 
-   A message that the optional PETSc package is not available is
-   informational, not an error; Finch's built-in solvers do not need it.
+The run scripts look for Finch V2 in `~/Packages/Finch-V2`; set `FINCH_V2_DIR` to
+use another checkout. Only the Julia target is used, so neither IREE nor a C++
+toolchain is needed.
 
 ## Run
 
@@ -114,25 +133,31 @@ Inside any example folder:
     ./run.sh
 
 Results and a `runlog.txt` with the printed output land in that example's
-`output/`. The first run of a session takes longer (compilation). Reference 13 is
-the slow one: about an hour on a laptop (the stabilized weak form is large; see
-its `notes/notes_cost.md`).
+`output/`. Each run first generates and compiles Finch's code (20-30 s).
 
 Figures need MATLAB: from the example's `matlabscripts/` folder run any
 `plot_*.m`; the PDFs are written to `output/` as well.
 
-## About `Finch_patched/`
+Run time. Finch V2 re-assembles the nonlinear sharpening term every explicit
+step, which makes the explicit 2D examples about five times slower per step than
+their V1 versions (about 28 ms per step on 100 x 100): roughly 10 minutes for
+Example 6, 45 for Example 7 and 30 for Example 8 at their default meshes, and many
+hours for the `paper512.sh` runs. The semi-implicit examples run close to V1's speed
+(Example 10 on 100 x 100: 47 s against 36 s). Run one example at a time: two Finch
+V2 runs side by side slowed each other down more than tenfold here.
 
-Finch is not installed as a Julia package. The repository carries its own copy,
-upstream [`paralab/Finch`](https://github.com/paralab/Finch) at commit
-`defa03c` plus eight fixes to the FEM boundary-integral code generation that
-Example 6 needs for its outflow boundary condition. `Finch_patched/PATCHES.md`
+## The Reference examples and `Finch_patched/`
+
+The folders in `Reference/` run on the original Finch, which is not installed as
+a Julia package: the repository carries its own copy, upstream
+[`paralab/Finch`](https://github.com/paralab/Finch) at commit `defa03c` plus eight
+fixes to the FEM boundary-integral code generation. `Finch_patched/PATCHES.md`
 lists every change, how it was verified, and what remains unfixed. Finch is MIT
-licensed; its license is included.
-
-To run against a different Finch checkout instead:
-
-    FINCH_DIR=/path/to/Finch ./run.sh
+licensed; its license is included. To run a Reference example, install that copy
+once (`cd Finch_patched; julia --project=. -e 'using Pkg; Pkg.instantiate()'`,
+Julia 1.13) and use its `run.sh`; `FINCH_DIR=/path/to/Finch ./run.sh` runs against
+another checkout. Reference 13 is the slow one: about an hour on a laptop (see its
+`notes/notes_cost.md`).
 
 ## Housekeeping
 
