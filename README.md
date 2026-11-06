@@ -22,6 +22,7 @@ with its Julia target; the folders in `Reference/` still use the original
 | `Example11_ConservativeDiffusiveInterfaceImplicitZalesak2D` | CDI, semi-implicit (as Example 10): Zalesak's slotted disk, one revolution |
 | `Example12_ConservativeDiffusiveInterfaceImplicitShearDrop2D` | CDI, semi-implicit (as Example 11): drop in a time-reversed shear (vortex) flow, one period |
 | `Example13_InterfaceNormalFDvsFEM` | The CDI interface normal by finite differences (forward, backward, central) and linear finite elements (element-wise, nodal) on a fixed field |
+| `Example17_NavierStokesConservativeDiffusiveInterfaceExplicit2D` | Navier-Stokes + CDI, explicit incremental projection, Finch V2 dev branch: drop advection, static drop, rising bubble (Hysing TC1) |
 | `Reference/Example10_ConservativeDiffusiveInterfaceImplicitLagged1D` | as Example 9 with the sharpening term fully lagged |
 | `Reference/Example11_ConservativeDiffusiveInterfaceImplicitLagged2D` | as Example 10 with the sharpening term fully lagged |
 | `Reference/Example12_ConservativeDiffusiveInterfaceVMS1D` | as Example 9 with VMS stabilization (residual-based, tau from the derivation) |
@@ -106,6 +107,37 @@ that element and the nodal gradient is the central difference (exactly in 1D;
 in 2D averaged over neighbouring rows with weights 1/6, 2/3, 1/6). Angle error
 of the normal on the disk: one-sided and element-wise 20 degrees, central
 difference (Mirjalili et al.) 2, nodal 0.07. It takes under a minute.
+
+Example 17 couples the CDI phase field to the incompressible Navier-Stokes
+equations (P30 note "NS + CDI, explicit coupling"): forward Euler, an
+incremental projection with four linear solves per step (phase field,
+density-weighted momentum predictor, variable-coefficient pressure Poisson,
+L2 velocity correction) and the consistent momentum flux of Mirjalili and Mani
+(2021), U = rho u - (rho1 - rho2) R. It needs Finch V2's development branch
+(vector unknowns and fields): run.sh uses ~/Packages/Finch-V2-dev. CDI_CASE
+selects the test:
+- A, drop advection (rho ratio 10, uniform u = (1, 0), 64^2, 1 min): the
+  consistent flux keeps u = (1, 0) to 1e-3 after one period; with
+  CDI_THETA23=0 the run blows up at t = 0.94 (run it to CDI_T=0.9 for the plots).
+- B, static drop (64^2, 1 min): Laplace jump 3.96 against sigma/R = 4.
+- C, rising bubble, Hysing et al. (2009) test case 1 (80 x 160, 17 min): max
+  rise velocity 0.2285 (0.2417), min circularity 0.9103 (0.9013), centroid at
+  t = 3 1.0618 (1.0813).
+  The reference curves and the final shape (TP2D, h = 1/320, files c1g1l7*.txt from
+  featflow.de) are in reference_hysing/.
+Findings: grad(phi) in the capillary stress must be the L2-projected nodal
+gradient (with the element gradient the static drop blows up at t ~ 0.05 for
+any dt); the viscous step limit is dx^2/(24 nu) with the consistent mass and
+the full stress, tighter than the note's; the singular pressure Poisson of a
+closed or periodic box is pinned by a tiny reaction term (CDI_PREG); `dt` in a
+quasi-static weak form is not the step size, so it enters as a coefficient.
+In case A the velocity error of the consistent run grows from round-off
+like e^(11 t), independent of dt: plot_Figure5 shows the pressure carries a
+node-to-node (checkerboard) oscillation as large as its smooth part, with the
+same pattern as the velocity error and the same growth rate, i.e. a spurious
+pressure mode of the equal-order u, p pair that the projection alone does
+not suppress. Case C on 120 x 240 (CDI_NEL=120, 1 h, plot_Figure4): 0.2333,
+0.9057, 1.0675, all closer to the benchmark.
 
 ## Setup, once
 

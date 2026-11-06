@@ -1,0 +1,10 @@
+# Run outputs (snapshots, histories, figures, movies) are written to
+# output_case<A|B|C>[_variant]/ by run.sh and are not committed.
+output_case*/
+
+# Finch generated code, if code generation is ever switched on
+*codeout*
+*code.jl
+
+# Personal notes (not committed)
+notes/
