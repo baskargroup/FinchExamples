@@ -15,7 +15,8 @@ function R = load_results(S, folder)
     R.x = At(:,1); R.y = At(:,2);
     R.A = At(:,3:end); R.UX = Ut(:,3:end); R.UY = Vt(:,3:end); R.P = Pt(:,3:end);
     R.t = rd('snapshot_times.csv');
-    R.h = rd('history.csv');
+    % a run that blew up has no history.csv (dump_snapshots.jl writes the rest)
+    if isfile(fullfile(d, 'history.csv')), R.h = rd('history.csv'); else, R.h = []; end
     R.Lx = max(R.x); R.Ly = max(R.y);
     [R.Xq, R.Yq] = meshgrid(linspace(0, R.Lx, round(200*R.Lx)), ...
                             linspace(0, R.Ly, round(200*R.Ly)));

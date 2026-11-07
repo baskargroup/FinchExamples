@@ -37,6 +37,18 @@
 #   C  rising bubble, Hysing et al., IJNMF 60 (2009) 1259, test case 1:
 #      [0,1]x[0,2], bubble R = 0.25 at (0.5, 0.5), rho 1000/100, mu 10/1,
 #      g = 0.98, sigma = 24.5, no-slip top and bottom, free slip on the sides.
+#   D  dam break (Martin and Moyce 1952, column of width a and height 2a):
+#      box [0,4a]x[0,3a] with a = 0.25, water column in [0,a]x[0,2a], free
+#      slip on all walls. Non-dimensional with the box width and g = 1:
+#      rho 1/0.001, mu 1e-3/1.8e-6, sigma 2.2e-5 (water/air at 0.584 m, but
+#      the water viscosity ten times the physical one, see the case block).
+#      Front position and column height against the experiment, in
+#      Z = x/a, H = h/(2a), T = t sqrt(2g/a).
+#   E  falling drop: a water drop (R = 0.1) released at rest in air at
+#      (0.5, 1.5) above a pool of depth 0.5 in [0,1]x[0,2], free slip walls,
+#      the fluids of case D. Before impact the drop falls freely (v = g t,
+#      air drag negligible), a check of the momentum coupling at density ratio
+#      1000; after impact a qualitative splash. Bond number rho g D^2/sigma = 2.
 #
 # Pressure: all three cases have no pressure boundary condition (periodic or
 # closed box), so the Poisson problem is singular (constants), and Finch V2
@@ -52,7 +64,7 @@ using Finch
 using DelimitedFiles
 
 const CASE = uppercase(get(ENV, "CDI_CASE", "A"))
-CASE in ("A", "B", "C") || error("CDI_CASE must be A, B or C")
+CASE in ("A", "B", "C", "D", "E") || error("CDI_CASE must be A, B, C, D or E")
 
 const OUT_DIR  = joinpath(@__DIR__, get(ENV, "CDI_OUTDIR", "output_case" * CASE))
 const PROJ_DIR = joinpath(OUT_DIR, "finch")
@@ -82,6 +94,34 @@ elseif CASE == "B"
     const U0  = (0.0, 0.0)
     const UREF = 0.1
     const T_END = envf("CDI_T", 1.0)
+elseif CASE == "D"
+    const NEL = parse(Int, get(ENV, "CDI_NEL", "128"))
+    const LY  = 0.75                           # 4a x 3a with a = 0.25
+    const RHO1, RHO2 = 1.0, envf("CDI_RHO2", 1e-3)                  # water, air
+    # water nu = 1e-3 (Re ~ 1500 on the box width): with the physical 1e-4 the
+    # unstabilised Galerkin convection grows a mode at the air side of the face
+    # (blows up at t ~ 0.2 for any dt and density ratio 10-1000); 1e-3 damps it
+    const MU1, MU2   = envf("CDI_MU1", 1e-3), envf("CDI_MU2", 1.8e-6)
+    const SIGMA, GRAV = 2.2e-5, 1.0
+    const XC, YC, RAD = 0.25, 0.5, 0.0        # column width a = XC, height 2a = YC
+    const DROP_INSIDE = true                  # phase 1 (phi = 1) is the water
+    const U0  = (0.0, 0.0)
+    const UREF = envf("CDI_UREF", 1.5)        # shallow-water front speed 2 sqrt(g 2a) = 1.4
+    const T_END = envf("CDI_T", 2.0)
+elseif CASE == "E"
+    const NEL = parse(Int, get(ENV, "CDI_NEL", "96"))
+    const LY  = 2.0
+    const RHO1, RHO2 = 1.0, envf("CDI_RHO2", 1e-3)                  # water, air
+    # water nu = 5e-3: with 1e-3 (case D) the fall is fine but the impact grows
+    # the air-side mode and the run blows up at t ~ 1.46; 5e-3 carries the splash
+    const MU1, MU2   = envf("CDI_MU1", 5e-3), envf("CDI_MU2", 1.8e-6)
+    const SIGMA, GRAV = 0.02, 1.0             # Bo = rho g (2R)^2 / sigma = 2
+    const XC, YC, RAD = 0.5, 1.5, 0.1
+    const POOL = 0.5                          # pool surface
+    const DROP_INSIDE = true
+    const U0  = (0.0, 0.0)
+    const UREF = envf("CDI_UREF", 1.5)        # free fall over 0.9: sqrt(2 g 0.9) = 1.34
+    const T_END = envf("CDI_T", 2.5)
 else
     const NEL = parse(Int, get(ENV, "CDI_NEL", "80"))
     const LY  = 2.0
@@ -125,7 +165,7 @@ ctx = init_finch("nscdi2d"; verbose = false, solver = :cg, solver_tol = 1e-10,
                  target = JuliaCPUTarget(out_dir = PROJ_DIR, func_name = "nscdi"))
 
 domain(2)
-if CASE == "C"
+if CASE in ("C", "D", "E")
     m = mesh(MESH_QUAD; elsperdim = (NEL, round(Int, LY * NEL)))
     m.nodes[2, :] .*= LY       # the built-in mesh is the unit square: stretch it
 else
@@ -151,10 +191,29 @@ if CASE == "C"
         boundary(u[1],  b, BC_DIRICHLET, 0.0)
         boundary(ut[1], b, BC_DIRICHLET, 0.0)
     end
+elseif CASE in ("D", "E")                      # free slip on all four walls
+    for b in (:xmin, :xmax)
+        boundary(u[1],  b, BC_DIRICHLET, 0.0)
+        boundary(ut[1], b, BC_DIRICHLET, 0.0)
+    end
+    for b in (:ymin, :ymax)
+        boundary(u[2],  b, BC_DIRICHLET, 0.0)
+        boundary(ut[2], b, BC_DIRICHLET, 0.0)
+    end
 end
 
 sgn = DROP_INSIDE ? 1.0 : -1.0
-phi0(x, y) = 0.5 * (1 - sgn * tanh((sqrt((x - XC)^2 + (y - YC)^2) - RAD) / (2 * EPS)))
+if CASE == "D"
+    # water column [0, XC] x [0, YC]: signed distance to its boundary (exact
+    # inside and beside the faces, slightly short outside the corner)
+    phi0(x, y) = 0.5 * (1 - tanh(max(x - XC, y - YC) / (2 * EPS)))
+elseif CASE == "E"
+    # drop and pool, both phase 1: the larger of the two profiles
+    phi0(x, y) = max(0.5 * (1 - tanh((sqrt((x - XC)^2 + (y - YC)^2) - RAD) / (2 * EPS))),
+                     0.5 * (1 - tanh((y - POOL) / (2 * EPS))))
+else
+    phi0(x, y) = 0.5 * (1 - sgn * tanh((sqrt((x - XC)^2 + (y - YC)^2) - RAD) / (2 * EPS)))
+end
 initial(alpha,  (x, y, z, t) -> phi0(x, y))
 initial(alphao, (x, y, z, t) -> phi0(x, y))
 initial(u, [(x, y, z, t) -> U0[1], (x, y, z, t) -> U0[2]])
@@ -296,11 +355,43 @@ elseif CASE == "B"
     pin  = sum(P[k, end] for k in 1:N if hypot(x[k] - XC, y[k] - YC) < 0.5RAD) / count(k -> hypot(x[k] - XC, y[k] - YC) < 0.5RAD, 1:N)
     pout = sum(P[k, end] for k in 1:N if hypot(x[k] - XC, y[k] - YC) > 1.6RAD) / count(k -> hypot(x[k] - XC, y[k] - YC) > 1.6RAD, 1:N)
     println("pressure jump = ", pin - pout, " (Laplace sigma/R = ", SIGMA / RAD, ")")
-else
+elseif CASE == "C"
     k = argmax(hist[:, 8])
     kc = argmin(circ)
     println("max rise velocity = ", hist[k, 8], " at t = ", t_m[k], "  (Hysing TC1: 0.2417 at 0.9213)")
     println("min circularity   = ", circ[kc], " at t = ", t_m[kc], "  (Hysing TC1: 0.9013 at 1.9041)")
     println("centroid y at end = ", hist[end, 6], "  (Hysing TC1 at t = 3: 1.0813)")
+end
+if CASE == "E"
+    # drop.csv: t, centroid y and mean vertical velocity of the water above the
+    # pool (y > POOL + 4 eps), valid until the drop touches the pool; free fall
+    # gives y_c = YC - g t^2/2, v = -g t
+    above = findall(k -> y[k] > POOL + 4EPS, 1:N)
+    yc = [sum(A[above, j] .* y[above]) / max(sum(A[above, j]), 1e-300) for j in 1:length(times)]
+    vc = [sum(A[above, j] .* UY[above, j]) / max(sum(A[above, j]), 1e-300) for j in 1:length(times)]
+    writedlm(joinpath(OUT_DIR, "drop.csv"), [times yc vc], ',')
+    k = findfirst(j -> minimum(y[k] for k in 1:N if A[k, j] > 0.5 && y[k] > POOL + 4EPS; init = Inf) < POOL + 6EPS, 1:length(times))
+    println("drop reaches the pool at t = ", k === nothing ? "never" : times[k], " (free fall: ", sqrt(2 * (YC - RAD - POOL) / GRAV), ")")
+end
+if CASE == "D"
+    # front.csv: t, x of the front on the floor, water height on the left wall
+    # (phi = 0.5 crossings, linearly interpolated), and the same in the
+    # Martin-Moyce variables T = t sqrt(2g/a), Z = x/a, H = h/(2a)
+    a = XC
+    function crossing(s, v)          # last s where v crosses 0.5 downward along s
+        o = sortperm(s); s = s[o]; v = v[o]; c = v[end] >= 0.5 ? s[end] : s[1]   # wet to the end: the wall
+        for k in 1:length(s)-1
+            if v[k] >= 0.5 && v[k+1] < 0.5
+                c = s[k] + (v[k] - 0.5) / (v[k] - v[k+1]) * (s[k+1] - s[k])
+            end
+        end
+        c
+    end
+    bottom = findall(k -> y[k] < 0.5 * DX, 1:N); left = findall(k -> x[k] < 0.5 * DX, 1:N)
+    xf = [crossing(x[bottom], A[bottom, j]) for j in 1:length(times)]
+    hl = [crossing(y[left], A[left, j]) for j in 1:length(times)]
+    writedlm(joinpath(OUT_DIR, "front.csv"), [times xf hl times .* sqrt(2 * GRAV / a) xf ./ a hl ./ (2a)], ',')
+    k = findfirst(z -> z >= 4a - 2DX, xf)
+    println("front reaches the wall at t = ", k === nothing ? "never" : times[k], " (T = ", k === nothing ? "-" : times[k] * sqrt(2 * GRAV / a), "; experiment T ~ 3)")
 end
 println(length(times), " snapshots written")

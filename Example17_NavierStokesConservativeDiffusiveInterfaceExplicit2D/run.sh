@@ -1,7 +1,7 @@
 #!/bin/zsh
 # Run this example with Finch V2, development branch (Julia target).
 # Usage:  ./run.sh                 case A
-#         CDI_CASE=C ./run.sh      case C (A, B, C: see main.jl)
+#         CDI_CASE=C ./run.sh      case C (A, B, C, D: see main.jl)
 # FINCH_V2_DIR is the Finch-V2 checkout on branch dev (default ~/Packages/Finch-V2-dev).
 set -e
 set -o pipefail          # a Julia failure must not be masked by tee

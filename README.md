@@ -22,7 +22,7 @@ with its Julia target; the folders in `Reference/` still use the original
 | `Example11_ConservativeDiffusiveInterfaceImplicitZalesak2D` | CDI, semi-implicit (as Example 10): Zalesak's slotted disk, one revolution |
 | `Example12_ConservativeDiffusiveInterfaceImplicitShearDrop2D` | CDI, semi-implicit (as Example 11): drop in a time-reversed shear (vortex) flow, one period |
 | `Example13_InterfaceNormalFDvsFEM` | The CDI interface normal by finite differences (forward, backward, central) and linear finite elements (element-wise, nodal) on a fixed field |
-| `Example17_NavierStokesConservativeDiffusiveInterfaceExplicit2D` | Navier-Stokes + CDI, explicit incremental projection, Finch V2 dev branch: drop advection, static drop, rising bubble (Hysing TC1) |
+| `Example17_NavierStokesConservativeDiffusiveInterfaceExplicit2D` | Navier-Stokes + CDI, explicit incremental projection, Finch V2 dev branch: drop advection, static drop, rising bubble (Hysing TC1), dam break (Martin and Moyce) |
 | `Reference/Example10_ConservativeDiffusiveInterfaceImplicitLagged1D` | as Example 9 with the sharpening term fully lagged |
 | `Reference/Example11_ConservativeDiffusiveInterfaceImplicitLagged2D` | as Example 10 with the sharpening term fully lagged |
 | `Reference/Example12_ConservativeDiffusiveInterfaceVMS1D` | as Example 9 with VMS stabilization (residual-based, tau from the derivation) |
@@ -123,8 +123,29 @@ selects the test:
 - C, rising bubble, Hysing et al. (2009) test case 1 (80 x 160, 17 min): max
   rise velocity 0.2285 (0.2417), min circularity 0.9103 (0.9013), centroid at
   t = 3 1.0618 (1.0813).
-  The reference curves and the final shape (TP2D, h = 1/320, files c1g1l7*.txt from
-  featflow.de) are in reference_hysing/.
+  The reference curves and final shapes (TP2D levels 4-7, h = 1/40 to 1/320,
+  files c1g1l<n>*.txt from featflow.de) are in reference_hysing/; plot_Figure6
+  compares at equal h.
+- D, dam break, Martin and Moyce (1952) column a x 2a in a 4a x 3a box, free
+  slip walls, non-dimensional with the box width and g = 1, water/air density
+  and surface tension (rho 1/0.001, sigma 2.2e-5) but the water viscosity ten
+  times the physical one (mu 1e-3/1.8e-6, Re ~ 1500), 128 x 96, 25 min: the
+  front reaches the far wall at T = t sqrt(2g/a) = 3.02 (experiment ~3) and
+  runs 5-10% ahead of the measured points before that. front.csv holds the
+  front position and column height; the experimental front (digitised as in
+  the Lethe dam-break example) is in reference_martin_moyce/. With the
+  physical viscosity (CDI_MU1=1e-4) a mode grows on the air side of the column
+  face and the run blows up at t ~ 0.2 for any dt and for density ratios 10 to
+  1000 (the same equal-order pressure mode as in case A, amplified by dt/rho in
+  the air); dump_snapshots.jl writes the snapshots of such a run for plotting.
+- E, falling drop: a water drop (R = 0.1) released at rest in air at (0.5, 1.5)
+  above a pool of depth 0.5 in [0,1]x[0,2], free slip walls, the fluids of
+  case D but water viscosity 5e-3, Bond number 2, 96 x 192, 37 min: drop.csv
+  holds the centroid and mean vertical velocity of the water above the pool;
+  they follow free fall (y_0 - g t^2/2, -g t) to contact at t = 1.33, then a
+  qualitative splash (entrained bubbles, crater, rebound) to t = 2.5. With the
+  dam-break viscosity 1e-3 (CDI_MU1=1e-3) the fall is identical but the impact
+  grows the air-side mode and the run blows up at t ~ 1.46.
 Findings: grad(phi) in the capillary stress must be the L2-projected nodal
 gradient (with the element gradient the static drop blows up at t ~ 0.05 for
 any dt); the viscous step limit is dx^2/(24 nu) with the consistent mass and
