@@ -3,11 +3,11 @@
 # b.grad(u) - nu*div(grad(u)) = f  on [0,1]^2,  u = 0 on boundary
 # b = (1,1), nu = 0.1
 # Exact solution: u = sin(pi*x)*sin(pi*y)
-# Finch V2, Julia target.
+# Finch V2 (branch dev). Run with ./run.sh; the target
+# (CPU Julia, or MLIR on the CPU/GPU) is chosen by FINCH_TARGET, see ../common.jl.
 #==============================================================================#
 
-using Finch
-using DelimitedFiles
+include(joinpath(@__DIR__, "..", "common.jl"))   # Finch, FINCH_TARGET switch, helpers
 
 # results are written to output/, a folder kept in the repo; Finch's generated
 # project goes to output/finch/
@@ -16,8 +16,8 @@ const PROJ_DIR = joinpath(OUT_DIR, "finch")
 mkpath(PROJ_DIR)
 
 # A small steady problem: direct solve (LU; the convection term makes it non-symmetric)
-ctx = init_finch("convdiff2d"; solver = :lu,
-                 target = JuliaCPUTarget(out_dir = PROJ_DIR, func_name = "convdiff2d"))
+ctx = init_finch("convdiff2d"; finch_solver_kwargs(:lu)...,
+                 target = finch_target("convdiff2d", PROJ_DIR))
 
 # Set up the configuration
 domain(2)                          # dimension
@@ -46,7 +46,7 @@ coefficient("f", (x, y, z, t) -> 1.0*pi*cos(pi*x)*sin(pi*y) + 1.0*pi*sin(pi*x)*c
 weak_form(u, "-nu*dot(grad(u),grad(v)) - dot(b,grad(u))*v + f*v")
 
 solve(u)
-Finch.run_emitted_julia!(ctx.target, u)
+finch_run!(ctx, u)
 
 # Error check against exact solution
 x = ctx.grid.nodes[1, :]

@@ -1,10 +1,10 @@
 #==============================================================================#
 # 2D Laplace problem on the unit square: u = 1 on the top side, 0 on the others.
-# CG, quadratic elements. Finch V2, Julia target.
+# CG, quadratic elements. Finch V2 (branch dev). Run with ./run.sh; the target
+# (CPU Julia, or MLIR on the CPU/GPU) is chosen by FINCH_TARGET, see ../common.jl.
 #==============================================================================#
 
-using Finch
-using DelimitedFiles
+include(joinpath(@__DIR__, "..", "common.jl"))   # Finch, FINCH_TARGET switch, helpers
 
 # results are written to output/, a folder kept in the repo; Finch's generated
 # project goes to output/finch/
@@ -12,8 +12,8 @@ const OUT_DIR  = joinpath(@__DIR__, "output")
 const PROJ_DIR = joinpath(OUT_DIR, "finch")
 mkpath(PROJ_DIR)
 
-ctx = init_finch("heat2d"; solver = :lu,
-                 target = JuliaCPUTarget(out_dir = PROJ_DIR, func_name = "heat2d"))
+ctx = init_finch("laplace2d"; finch_solver_kwargs(:lu)...,
+                 target = finch_target("laplace2d", PROJ_DIR))
 
 # Set up the configuration
 domain(2)                          # dimension
@@ -35,7 +35,7 @@ coefficient("f", 0.0)
 weak_form(u, "dot(grad(u),grad(v)) - f*v")
 
 solve(u)
-Finch.run_emitted_julia!(ctx.target, u)
+finch_run!(ctx, u)
 
 # Get coordinates and solution values
 x = ctx.grid.nodes[1, :]   # x-coordinates
@@ -47,3 +47,7 @@ data = [x y uvals]
 
 # Write to CSV
 writedlm(joinpath(OUT_DIR, "solution.csv"), data, ',')
+
+# No closed form here: two numbers for regression checks
+println("max |u| = " * string(maximum(abs.(uvals))))
+println("mean u = " * string(sum(uvals) / length(uvals)))

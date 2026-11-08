@@ -1,12 +1,12 @@
 #==============================================================================#
 # 1D steady convection-diffusion with Dirichlet BCs.
 # a*u_x - nu*u_xx = f,  u(0)=u(1)=0
-# CG, linear elements, plain Galerkin (no stabilization). Finch V2, Julia target.
+# CG, linear elements, plain Galerkin (no stabilization). Finch V2 (branch dev). Run with ./run.sh; the target
+# (CPU Julia, or MLIR on the CPU/GPU) is chosen by FINCH_TARGET, see ../common.jl.
 # Exact solution: u = sin(pi*x)
 #==============================================================================#
 
-using Finch
-using DelimitedFiles
+include(joinpath(@__DIR__, "..", "common.jl"))   # Finch, FINCH_TARGET switch, helpers
 
 # results are written to output/, a folder kept in the repo; Finch's generated
 # project goes to output/finch/
@@ -15,8 +15,8 @@ const PROJ_DIR = joinpath(OUT_DIR, "finch")
 mkpath(PROJ_DIR)
 
 # A small steady problem: direct solve (LU; the convection term makes it non-symmetric)
-ctx = init_finch("convdiff1d"; solver = :lu,
-                 target = JuliaCPUTarget(out_dir = PROJ_DIR, func_name = "convdiff1d"))
+ctx = init_finch("convdiff1d"; finch_solver_kwargs(:lu)...,
+                 target = finch_target("convdiff1d", PROJ_DIR))
 
 domain(1)
 mesh(MESH_LINE; elsperdim = 200)
@@ -39,7 +39,7 @@ coefficient("f", (x, y, z, t) -> 1.0*pi*cos(pi*x) + 0.01*pi*pi*sin(pi*x))
 weak_form(u, "-nu*grad(u)*grad(v) - a*grad(u)*v + f*v")
 
 solve(u)
-Finch.run_emitted_julia!(ctx.target, u)
+finch_run!(ctx, u)
 
 # Error check against exact solution sin(pi*x)
 x = ctx.grid.nodes[1, :]
