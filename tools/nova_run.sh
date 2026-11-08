@@ -40,6 +40,8 @@ echo "example $(basename "$PWD")  case '${CDI_CASE:-}'  target ${FINCH_TARGET:-j
 start=$(date +%s)
 ./run.sh > /dev/null 2>&1; status=$?
 echo "run.sh exit $status after $(( ($(date +%s) - start) / 60 )) min"
+[ "${FINCH_TARGET:-julia}" = "mlir_cuda" ] && nvidia-smi --query-gpu=name,memory.used,memory.total --format=csv 2>/dev/null
+[ -f "$LOG" ] || { echo "no run log at $LOG"; exit 1; }
 echo "--- summary lines of $LOG"
 grep -v -E '^\[|^ *@|^\s*$|Precompil|✓|Finch\]|^ [├└─ ]|^─|Finch has completed|dependenc|precompiled' "$LOG" | tail -20
 if [ -n "$REF" ]; then

@@ -9,4 +9,6 @@ set -e
 set -o pipefail          # a Julia failure must not be masked by tee
 FINCH_V2_DIR="${FINCH_V2_DIR:-$HOME/Packages/Finch-V2}"
 cd "$(dirname "$0")"
-${JULIA:-julia +1.12} --project="$FINCH_V2_DIR" main.jl 2>&1 | tee output/runlog.txt
+OUT="${CDI_OUTDIR:-output}"            # CDI_OUTDIR: another results folder (e.g. output/mlir_cuda)
+mkdir -p "$OUT"
+${JULIA:-julia +1.12} --project="$FINCH_V2_DIR" main.jl 2>&1 | tee "$OUT/runlog.txt"

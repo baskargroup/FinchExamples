@@ -10,7 +10,7 @@ include(joinpath(@__DIR__, "..", "common.jl"))   # Finch, FINCH_TARGET switch, h
 
 # results are written to output/, a folder kept in the repo; Finch's generated
 # project goes to output/finch/
-const OUT_DIR  = joinpath(@__DIR__, "output")
+const OUT_DIR  = joinpath(@__DIR__, get(ENV, "CDI_OUTDIR", "output"))   # CDI_OUTDIR: another results folder
 const PROJ_DIR = joinpath(OUT_DIR, "finch")
 mkpath(PROJ_DIR)
 

@@ -55,7 +55,7 @@ include("scheme.jl")
 # CFL 1 and above lose accuracy quickly (see notes/).
 const CFL = 0.25
 
-const OUT_DIR = joinpath(@__DIR__, "output")
+const OUT_DIR = joinpath(@__DIR__, get(ENV, "CDI_OUTDIR", "output"))   # CDI_OUTDIR: another results folder
 r = run_case(CFL, 2; proj_dir = joinpath(OUT_DIR, "finch"), snapshots = 20)
 r.ok || error("the run failed")
 
