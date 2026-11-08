@@ -1,7 +1,7 @@
-% Figure 1: phase field after one revolution, with the phi = 0.5 contour of the
+% Figure 1: phase field after one period, with the phi = 0.5 contour of the
 % final field and of the initial field (= exact solution)
 clc; close all; clear;
-plot_common;
+sheardrop_plot_common;
 T  = times(end);
 F.Values = PHI(:,end);
 Zf = F(Xq, Yq);

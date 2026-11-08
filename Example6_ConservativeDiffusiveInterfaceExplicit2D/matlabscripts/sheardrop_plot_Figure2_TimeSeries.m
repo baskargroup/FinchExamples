@@ -1,7 +1,7 @@
 % Figure 2: the phase field at every eighth of the period, t = 0, T/8, ..., T.
 % The drop is stretched into a spiral up to t = T/2, then the flow reverses.
 clc; close all; clear;
-plot_common;
+sheardrop_plot_common;
 keep = round(linspace(1, nsnap, 9));
 
 fig = S.figure(1000, 1000);

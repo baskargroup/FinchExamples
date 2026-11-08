@@ -1,6 +1,6 @@
 % Figure 2: interface (phi = 0.5) at every eighth of the revolution, colored by time
 clc; close all; clear;
-plot_common;
+zalesak_plot_common;
 keep = round(linspace(1, nsnap, 9));      % t = 0, T/8, ..., T
 cmap = S.ramp(numel(keep));
 

@@ -2,7 +2,7 @@
 % solution.csv:            x, y, phi (t = T), phi (initial), phi (t = T/2)
 % solution_timeseries.csv: columns 1-2 = x, y; columns 3.. = phi at snapshot k
 % snapshot_times.csv:      time of each snapshot
-S     = plot_style();
+S     = plot_style('sheardrop');
 ts    = S.load('solution_timeseries.csv');
 times = S.load('snapshot_times.csv');
 x     = ts(:,1);

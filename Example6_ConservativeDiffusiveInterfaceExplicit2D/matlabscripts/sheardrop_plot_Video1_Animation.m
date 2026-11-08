@@ -1,7 +1,7 @@
 % Video 1: animation of the phase field with the numerical interface and the
 % initial drop, which is the exact solution at t = T
 clc; close all; clear;
-plot_common;
+sheardrop_plot_common;
 fps = 5;
 try
     vid = VideoWriter(S.file('Video1_Animation.mp4'), 'MPEG-4');          % Mac / Windows

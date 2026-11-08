@@ -6,6 +6,7 @@ cd "$(dirname "$0")/.."
 submit() {   # folder case extra ref log rtol atol
     local folder=$1 case=$2 extra=$3 ref=$4 log=$5 rtol=${6:-1e-8} atol=${7:-1e-12}
     local name="${folder%%_*}${case:+_$case}"
+    [ -d "$folder" ] || { echo "skip $name: no folder $folder (not on this branch yet)"; return; }
     sbatch --chdir="$folder" --job-name="$name" \
            --export=ALL,CDI_CASE=$case,REF=$ref,LOG=$log,RTOL=$rtol,ATOL=$atol${extra:+,$extra} \
            ../tools/nova_run.sh

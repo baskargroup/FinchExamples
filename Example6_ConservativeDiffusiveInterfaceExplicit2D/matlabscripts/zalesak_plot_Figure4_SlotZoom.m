@@ -1,7 +1,7 @@
 % Figure 4: zoom on the slotted disk after one revolution, with the element grid.
 % Left: the whole disk. Right: the slot, where the shape changes most.
 clc; close all; clear;
-plot_common;
+zalesak_plot_common;
 F.Values = PHI(:,end);  Zf = F(Xq, Yq);
 F.Values = PHI(:,1);    Z0 = F(Xq, Yq);
 

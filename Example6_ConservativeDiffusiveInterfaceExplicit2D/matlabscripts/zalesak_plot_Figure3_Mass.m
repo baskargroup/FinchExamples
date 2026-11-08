@@ -1,6 +1,6 @@
 % Figure 3: total mass (integral of phi) relative to its initial value vs time
 clc; close all; clear;
-plot_common;
+zalesak_plot_common;
 % Lumped finite element weights (half at an edge node, quarter at a corner)
 w = ones(size(x));
 w(abs(x) < 1e-12 | abs(x-1) < 1e-12) = 0.5 * w(abs(x) < 1e-12 | abs(x-1) < 1e-12);

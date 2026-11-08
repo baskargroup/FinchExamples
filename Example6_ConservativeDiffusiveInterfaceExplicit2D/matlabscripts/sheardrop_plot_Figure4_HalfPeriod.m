@@ -2,7 +2,7 @@
 % Left: the whole spiral. Right: zoom on the thin tail, where the filament
 % is only a few elements wide.
 clc; close all; clear;
-plot_common;
+sheardrop_plot_common;
 data = S.load('solution.csv');
 F.Values = data(:,5);  Zh = F(Xq, Yq);
 

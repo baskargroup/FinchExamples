@@ -1,7 +1,7 @@
 % Video 1: animation of the phase field with the numerical interface and the
 % exact slotted disk rotated to the current time
 clc; close all; clear;
-plot_common;
+zalesak_plot_common;
 fps = 5;
 try
     vid = VideoWriter(S.file('Video1_Animation.mp4'), 'MPEG-4');          % Mac / Windows

@@ -1,6 +1,0 @@
-dt = 0.00025, steps = 16000 (one period, T = 4.0)
-max error = 0.5746442906948103
-L1 (shape) error = 0.0025211824541875724
-min phi = 1.4674683685176563e-10, max phi = 0.9999999973736411
-relative mass change = -3.757773396377623e-13
-65 snapshots written

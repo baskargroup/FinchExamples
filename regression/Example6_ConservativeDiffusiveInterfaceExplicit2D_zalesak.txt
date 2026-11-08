@@ -1,0 +1,7 @@
+normal: nodal
+dt = 0.0002499974259809647, steps = 25133 (one revolution, T = 2*pi)
+max error = 0.4959355687372612
+L1 error = 0.001980554171965612
+min phi = 1.1188967982518424e-13, max phi = 0.9999988854811467
+relative mass change = 7.296515389194232e-10
+62 snapshots written
