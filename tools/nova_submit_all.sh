@@ -9,7 +9,7 @@ submit() {   # folder case extra ref log rtol atol
     [ -d "$folder" ] || { echo "skip $name: no folder $folder (not on this branch yet)"; return; }
     sbatch --chdir="$folder" --job-name="$name" \
            --export=ALL,CDI_CASE=$case,REF=$ref,LOG=$log,RTOL=$rtol,ATOL=$atol${extra:+,$extra} \
-           ../tools/nova_run.sh
+           "$(pwd)/tools/nova_run.sh"
 }
 submit Example1_Poisson1D                                            ""        "" Example1_Poisson1D.txt                                               output/runlog.txt
 submit Example2_Poisson2D                                            ""        "" Example2_Poisson2D.txt                                               output/runlog.txt
