@@ -24,8 +24,8 @@ submit Example7_ConservativeDiffusiveInterfaceImplicit1D             ""        "
 submit Example8_ConservativeDiffusiveInterfaceImplicit2D             circle    "" Example8_ConservativeDiffusiveInterfaceImplicit2D_circle.txt         output/circle/runlog.txt
 submit Example8_ConservativeDiffusiveInterfaceImplicit2D             zalesak   "" Example8_ConservativeDiffusiveInterfaceImplicit2D_zalesak.txt        output/zalesak/runlog.txt
 submit Example8_ConservativeDiffusiveInterfaceImplicit2D             sheardrop "" Example8_ConservativeDiffusiveInterfaceImplicit2D_sheardrop.txt      output/sheardrop/runlog.txt
-submit Example21_NavierStokesConservativeDiffusiveInterfaceExplicit2D A         "" Example21_NavierStokesConservativeDiffusiveInterfaceExplicit2D_caseA.txt output_caseA/runlog.txt
-submit Example21_NavierStokesConservativeDiffusiveInterfaceExplicit2D E         "" Example21_NavierStokesConservativeDiffusiveInterfaceExplicit2D_caseE.txt output_caseE/runlog.txt
+submit Example21_NavierStokesConservativeDiffusiveInterfaceExplicit2D A         "" Example21_NavierStokesConservativeDiffusiveInterfaceExplicit2D_caseA.txt output_caseA/runlog.txt 1e-6 1e-9
+submit Example21_NavierStokesConservativeDiffusiveInterfaceExplicit2D E         "" Example21_NavierStokesConservativeDiffusiveInterfaceExplicit2D_caseE.txt output_caseE/runlog.txt 1e-6 1e-9
 submit Example31_ConservativeDiffusiveInterfaceScalarTransportExplicit1D ""     "" Example31_ConservativeDiffusiveInterfaceScalarTransportExplicit1D.txt output/runlog.txt 1e-6 1e-9
 submit Example32_ConservativeDiffusiveInterfaceScalarTransportExplicit2D bubbles   CDI_NEL=100 Example32_ConservativeDiffusiveInterfaceScalarTransportExplicit2D_bubbles.txt   output/bubbles/runlog.txt   1e-6 1e-9
 submit Example32_ConservativeDiffusiveInterfaceScalarTransportExplicit2D electrode CDI_NEL=100 Example32_ConservativeDiffusiveInterfaceScalarTransportExplicit2D_electrode.txt output/electrode/runlog.txt 1e-6 1e-9

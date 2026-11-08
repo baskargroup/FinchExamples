@@ -277,7 +277,9 @@ against them (relative tolerance 1e-8 on the scale of each line, absolute
 
 The references were taken on the Julia target; the MLIR target solves with
 BiCGSTAB instead of LU or CG, so its numbers agree to the solver tolerance,
-not to 1e-8. `bash tools/test_compare_runlog.sh` and
+not to 1e-8. Across machines (laptop against Nova) the examples with many
+Krylov solves per step (21, 31, 32) agree to about 1e-7, so their checks use
+`--rtol 1e-6 --atol 1e-9`. `bash tools/test_compare_runlog.sh` and
 `julia +1.12 --project=$HOME/Packages/Finch-V2 tools/test_common.jl` test the
 tools themselves.
 
