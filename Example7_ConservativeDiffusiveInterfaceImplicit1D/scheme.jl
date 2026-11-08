@@ -13,14 +13,18 @@
 #   "lagged"    phis*(1 - phis)                fully lagged, a right-hand side
 #   "reversed"  phis*(1 - phi)                 the other factor implicit
 #   "newton"    (1 - 2*phis)*phi + phis^2      Newton about phis
-#   "extrap"    pe*(1 - pe), pe = 2*phio - phioo, one solve per step (BDF2
+#   "extrap"    pe*(1 - pe), pe = 2*phio - phi(n-1), one solve per step (BDF2
 #               with an extrapolated explicit term, the usual IMEX choice);
-#               on the first step phioo = phio, so pe = phio
+#               on the first step phi(n-1) = phio, so pe = phio
 # Returns (x, phi(T), dt, nsteps, snapshots, snap_times, ok), x in order.
+#
+# Finch V2 (branch dev): the level two steps back is Finch's own history
+# `old(phi, 2)` and the BDF coefficients are coefficients of t (BDF1 on the
+# first step, BDF2 after), so only phio and phis remain as fields. The target
+# (CPU Julia, or MLIR on the CPU/GPU) is chosen by FINCH_TARGET, see ../common.jl.
 #==============================================================================#
 
-using Finch
-using DelimitedFiles
+include(joinpath(@__DIR__, "..", "common.jl"))   # Finch, FINCH_TARGET switch, helpers
 
 # Physical parameters (same case as Example 5)
 const NEL  = 200
@@ -48,20 +52,16 @@ function run_case(CFL, iters; form = "derived", nel = NEL,
     mkpath(proj_dir)
 
     # Advection makes the matrix non-symmetric: BiCGSTAB
-    ctx = init_finch("cdi1dimplicit"; verbose = verbose, solver = :bicgstab, solver_tol = 1e-12,
-                     target = JuliaCPUTarget(out_dir = proj_dir, func_name = "cdi1dimplicit"))
+    ctx = init_finch("cdi1dimplicit"; verbose = verbose, finch_solver_kwargs(:bicgstab; tol = 1e-12)...,
+                     target = finch_target("cdi1dimplicit", proj_dir))
     domain(1)
     mesh(MESH_LINE; elsperdim = nel)
     function_space(order = 1)
 
-    phi   = variable("phi")     # unknown: the current Picard iterate
-    phio  = variable("phio")    # previous time level
-    phioo = variable("phioo")   # two time levels back
+    phi   = variable("phi")     # unknown: the current Picard iterate; old(phi, 2) is two levels back
+    phio  = variable("phio")    # previous time level (old(phi) would be the Picard iterate)
     phis  = variable("phis")    # lagged field for the sharpening term
     gx    = variable("gx")      # projected gradient of phis, for the nodal normal
-    a0    = variable("a0")      # BDF coefficients over dt, as fields: BDF1 on
-    a1    = variable("a1")      # the first step, switched to BDF2 by an update
-    a2    = variable("a2")
     test_symbol("v")
 
     # The profile spans the domain, so the ends carry the two bulk values
@@ -70,10 +70,14 @@ function run_case(CFL, iters; form = "derived", nel = NEL,
 
     # Initial condition: the equilibrium profile centred at x0, in every level
     ic = (x, y, z, t) -> 0.5*(1 + tanh((x - X0)/(2*eps)))
-    for f in (phi, phio, phioo, phis)
+    for f in (phi, phio, phis)
         initial(f, ic)
     end
-    initial(a0, 1.0/dt); initial(a1, -1.0/dt); initial(a2, 0.0)
+    # BDF coefficients over dt: BDF1 on the first step (the solves of step n see
+    # t = n*dt), BDF2 after
+    coefficient("a0", (x, y, z, t) -> ifelse(t < 1.5*dt,  1.0/dt,  1.5/dt))
+    coefficient("a1", (x, y, z, t) -> ifelse(t < 1.5*dt, -1.0/dt, -2.0/dt))
+    coefficient("a2", (x, y, z, t) -> ifelse(t < 1.5*dt,  0.0,     0.5/dt))
 
     # Coefficients. The theta are the model coefficients of the derivation,
     # all one in dimensional form.
@@ -86,14 +90,15 @@ function run_case(CFL, iters; form = "derived", nel = NEL,
     coefficient("epsilon", eps)
     coefficient("delta", 1e-12)     # keeps nhat finite where grad(phis) = 0
 
-    # The time loop. Every entry is quasi-static; the stepper only sets dt.
+    # The time loop. Every entry is quasi-static; the stepper only sets the
+    # step and keeps the history old(phi, 2).
     time_interval(T)
-    time_stepper(STEP_EULER_IMPLICIT; dt = dt, store_trajectory = snapshots > 0,
+    time_stepper(STEP_BDF2; Nsteps = nsteps, store_trajectory = snapshots > 0,
                  snapshot_every = max(1, nsteps ÷ max(snapshots, 1)))
 
     # Weak form of one Picard iteration (residual = 0). Terms with phi go to
     # the matrix, the rest to the right-hand side:
-    #   theta1*(a0*phi + a1*phio + a2*phioo, v)          time derivative (BDF)
+    #   theta1*(a0*phi + a1*phio + a2*old(phi, 2), v)    time derivative (BDF)
     #   - theta2/2*(u*phi, grad v)                        advection, conservative half
     #   + theta2/2*(u*grad phi, v)                        advection, other half
     #   + theta3*(gamma*eps*grad phi, grad v)             diffusion
@@ -101,25 +106,24 @@ function run_case(CFL, iters; form = "derived", nel = NEL,
     # The boundary terms from integrating by parts drop out because v vanishes
     # at the two Dirichlet ends.
     weak_form(gx, "gx*v - grad(phis)*v")
-    weak_form(phi, "theta1*(a0*phi + a1*phio + a2*phioo)*v" *
+    weak_form(phi, "theta1*(a0*phi + a1*phio + a2*old(phi, 2))*v" *
                    " - 0.5*theta2*u*phi*grad(v)" *
                    " + 0.5*theta2*u*grad(phi)*v" *
                    " + theta3*gamma*epsilon*dot(grad(phi), grad(v))" *
-                   " - theta4*gamma*" * SHARPENING[form] * "*gx*pow(gx*gx + delta, -0.5)*grad(v)")
+                   " - theta4*gamma*" * SHARPENING[form] * "*" * NDOTGV_NODAL_1D * "*grad(v)")
 
-    first_lag = form == "extrap" ? "2*phio - phioo" : "phio"
+    first_lag = form == "extrap" ? "2*phio - old(phi, 2)" : "phio"
     entries = Any[update(phis => first_lag), gx, phi]
     for it = 2:iters
         append!(entries, [update(phis => "phi"), gx, phi])
     end
-    append!(entries, [update(phioo => "phio"), update(phio => "phi"),
-                      update(a0 => "$(1.5/dt)"), update(a1 => "$(-2.0/dt)"), update(a2 => "$(0.5/dt)")])
+    push!(entries, update(phio => "phi"))
     step_schedule(entries...)
 
     solve()
     ok = true
     try
-        Finch.run_emitted_julia!(ctx.target, phi)
+        finch_run!(ctx, phi)
     catch err
         ok = false
         println("run failed: ", sprint(showerror, err))
@@ -129,12 +133,15 @@ function run_case(CFL, iters; form = "derived", nel = NEL,
     o = sortperm(x)
     snaps = Vector{Vector{Float64}}()
     times = Float64[]
-    if ok && snapshots > 0
-        results = joinpath(proj_dir, "results")
-        _, metas = Finch.read_results_manifest(results)
-        snaps = [Finch.load_snapshot_values(results, s)["phi"][o] for s in metas]
-        times = [Float64(s["t"]) for s in metas]
+    phiT  = fill(NaN, length(x))
+    if ok
+        # the final state is the last entry of results/ (both targets write it)
+        times, fields = read_snapshots(proj_dir)
+        check_final_time(times, T)
+        phiT = final_values(fields, "phi")[o]
+        snaps = snapshots > 0 ? [fields["phi"][o, k] for k in eachindex(times)] : snaps
+        snapshots > 0 || (times = Float64[])
     end
-    return (x = x[o], phi = phi.values[1, o], dt = dt, nsteps = nsteps,
+    return (x = x[o], phi = phiT, dt = dt, nsteps = nsteps,
             snapshots = snaps, snap_times = times, ok = ok)
 end
