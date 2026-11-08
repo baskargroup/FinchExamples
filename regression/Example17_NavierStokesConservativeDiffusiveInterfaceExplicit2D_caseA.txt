@@ -1,0 +1,9 @@
+case A: NEL = 64, LY = 1.0, dt = 0.00078125, steps = 1280, theta23 = 1.0, preg_rel = 1.0e-6
+volume: 0.07320903177042501 -> 0.07320903493707254, relative change 4.325487512880547e-8
+kinetic energy: 0.8294406429669123 -> 0.8294406307167947, relative change -1.4769131089559843e-8
+min alpha = 2.9812418084083733e-9, max alpha = 0.9999750335339157
+max ||div u||_2 = 0.008644608015652533
+max |u| at the end = 1.0008811838746838
+||u - (1,0)||_2 at the end = 5.7577422570801004e-5, max |u - (1,0)| = 0.0012724966416523442
+L1 shape error after one period = 0.0017650200657674375
+62 snapshots written

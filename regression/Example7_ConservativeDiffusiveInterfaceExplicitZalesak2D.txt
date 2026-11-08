@@ -1,0 +1,6 @@
+dt = 0.0002499974259809647, steps = 25133 (one revolution, T = 2*pi)
+max error = 0.6398676897668724
+L1 error = 0.003385368754585961
+min phi = 9.909731958264485e-14, max phi = 0.9999987571495362
+relative mass change = -5.052801217160516e-13
+61 snapshots written

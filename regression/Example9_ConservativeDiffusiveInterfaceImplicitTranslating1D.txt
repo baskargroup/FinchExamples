@@ -1,0 +1,4 @@
+dt = 0.00125, steps = 200 (CFL 0.25)
+max error = 0.0058806137160487895
+min phi = 0.0, max phi = 0.9999999999999998
+21 snapshots written

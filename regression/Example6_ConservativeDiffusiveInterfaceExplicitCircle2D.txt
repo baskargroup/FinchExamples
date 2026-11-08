@@ -1,0 +1,4 @@
+max error = 0.01831690110789322
+min phi = 0.0, max phi = 1.0000001948372514
+relative mass change = 3.38984516044286e-7
+61 snapshots written

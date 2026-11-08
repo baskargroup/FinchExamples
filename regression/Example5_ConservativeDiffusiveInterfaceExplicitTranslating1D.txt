@@ -1,0 +1,3 @@
+max error = 0.015621269307781127
+min phi = 0.0, max phi = 1.0000000230919421
+21 snapshots written
