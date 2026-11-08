@@ -5,7 +5,9 @@
 
 Every line of the form `name = v`, `name: a -> b, ...`, `dt = v, steps = n ...`
 is a key (the text before the first `=` or `:`) with the floats found in it.
-Exit 0 when every key of REF is in NEW with all its numbers within rtol;
+Exit 0 when every key of REF is in NEW with all its numbers within rtol of the
+largest magnitude on that line (a balance error next to O(1) totals is compared
+on the totals' scale);
 exit 1 with one line per mismatch otherwise. Lines starting with `run time`
 are ignored. Lines without a `=` or `:` (e.g. "61 snapshots written") use the
 whole line, without its numbers, as the key.
@@ -24,16 +26,17 @@ def parse(path):
         if not line.strip() or line.startswith("run time"):
             continue
         m = re.search(r"[=:]", line)
+        # the numbers are those after the key: "L1 error = ..." has one, not two
         key = line[: m.start()].rstrip() if m else NUM.sub("#", line).strip()
-        nums = [float(x) for x in NUM.findall(line)]
+        nums = [float(x) for x in NUM.findall(line[m.end():] if m else line)]
         if m is None and not nums:
             continue
         keys[key] = nums
     return keys
 
 
-def close(a, b, rtol):
-    return abs(a - b) <= rtol * max(abs(a), abs(b)) or abs(a - b) <= 1e-300
+def close(a, b, rtol, scale):
+    return abs(a - b) <= rtol * max(abs(a), abs(b), scale) or abs(a - b) <= 1e-300
 
 
 def main():
@@ -52,9 +55,10 @@ def main():
         if len(nv) != len(rv):
             bad.append(f"{key!r}  {len(rv)} numbers in REF, {len(nv)} in NEW")
             continue
+        scale = max([abs(v) for v in rv] + [0.0])
         for i, (x, y) in enumerate(zip(rv, nv)):
             count += 1
-            if not close(x, y, a.rtol):
+            if not close(x, y, a.rtol, scale):
                 rel = abs(x - y) / max(abs(x), abs(y), 1e-300)
                 bad.append(f"{key!r}  [{i}]  ref {x!r}  new {y!r}  rel {rel:.3e}")
     if bad:

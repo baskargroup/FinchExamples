@@ -25,4 +25,9 @@ grep -v "max phi" "$T/ref.txt" > "$T/new.txt";                            check 
 { cat "$T/ref.txt"; echo "run time = 1 s"; } > "$T/new.txt"
 # a run time line in REF is ignored too
 cp "$T/new.txt" "$T/ref.txt"; echo "run time = 99 s" >> "$T/new.txt";     check "run time ignored" 0 OK
+# tolerance scales with the largest number on the line: a near-zero balance error
+# next to O(1) volumes may differ in its 7th digit, a lone small number may not
+printf 'gas volume: 0.25 -> 0.41079902933452633, created 0.16079863239518402, balance error 3.969393423397527e-7\nmax error = 1.0e-7\n' > "$T/ref.txt"
+printf 'gas volume: 0.25 -> 0.41079902933452633, created 0.16079863239518402, balance error 3.969388275293362e-7\nmax error = 1.0e-7\n' > "$T/new.txt"; check "scaled tolerance" 0 OK
+printf 'gas volume: 0.25 -> 0.41079902933452633, created 0.16079863239518402, balance error 3.969393423397527e-7\nmax error = 1.00001e-7\n' > "$T/new.txt"; check "lone small number" 1 "max error"
 [ $fail = 0 ] && echo ALL PASS || { echo SOME FAILED; exit 1; }
