@@ -1,10 +1,10 @@
 #==============================================================================#
 # 1D Poisson problem with Dirichlet boundary conditions.
-# CG, Linear element. Finch V2, Julia target.
+# CG, Linear element. Finch V2 (branch dev). Run with ./run.sh; the target
+# (CPU Julia, or MLIR on the CPU/GPU) is chosen by FINCH_TARGET, see ../common.jl.
 #==============================================================================#
 
-using Finch                     # Load Finch package
-using DelimitedFiles
+include(joinpath(@__DIR__, "..", "common.jl"))   # Finch, FINCH_TARGET switch, helpers
 
 # results are written to output/, a folder kept in the repo; Finch's generated
 # project goes to output/finch/
@@ -13,8 +13,8 @@ const PROJ_DIR = joinpath(OUT_DIR, "finch")
 mkpath(PROJ_DIR)
 
 # Initialize 1D Poisson problem setup
-ctx = init_finch("poisson1d"; solver = :lu,
-                 target = JuliaCPUTarget(out_dir = PROJ_DIR, func_name = "poisson1d"))
+ctx = init_finch("poisson1d"; finch_solver_kwargs(:lu)...,
+                 target = finch_target("poisson1d", PROJ_DIR))
 
 domain(1)                       # Define problem as 1-dimensional
 mesh(MESH_LINE; elsperdim = 200)   # Create uniform 1D mesh with 200 elements
@@ -36,7 +36,7 @@ weak_form(u, "-grad(u)*grad(v) - f*v")
 
 # Solve the PDE
 solve(u)
-Finch.run_emitted_julia!(ctx.target, u)
+finch_run!(ctx, u)
 
 # Exact solution: sin(10*pi*x)*sin(pi*x)
 x = ctx.grid.nodes[1, :]                     # x-coordinates
