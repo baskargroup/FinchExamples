@@ -1,0 +1,12 @@
+NEL = 100, dt = 0.0005, steps = 3000, AMIN = 0.01
+gas volume: 0.06412768988653891 -> 0.3037004694398295, created 0.23957729459720106, balance error -4.515043910496841e-6
+gas moles (dissolved + gas): 2.871744620226921 -> 2.821661625107922, change -0.05008299511899894 (diffusion through the boundary)
+bubble A: equivalent radius 0.082 -> 0.1606
+bubble B: equivalent radius 0.0627 -> 0.1477
+bubble C: equivalent radius 0.0626 -> 0.1318
+bubble D: equivalent radius 0.0626 -> 0.1347
+bubble E: equivalent radius 0.0439 -> 0.1164
+min alpha = -4.484995356766561e-9, max alpha = 1.0000216898659906
+min c = 1.5110909986500656e-6, max c = 6.285300851778822
+max alpha away from the bubbles = 0.005692133160138687
+76 snapshots written

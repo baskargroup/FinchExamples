@@ -1,0 +1,7 @@
+NEL = 100, dt = 0.0005, steps = 4000, AMIN = 0.0
+gas volume: 0.02182533586542796 -> 0.14936627586450743, created 0.12754096131144246, balance error -2.131236298552608e-8
+gas moles (dissolved + gas): 1.0 -> 1.0724589977180732, electrode put in 0.2 (the rest left through the top)
+min alpha = -1.0748911190621763e-8, max alpha = 0.9999998887230309
+min c = 0.001993581153359562, max c = 1.8312060402744244
+max alpha in the upper liquid (y > 0.6) = 3.9984021852330397e-10
+101 snapshots written
