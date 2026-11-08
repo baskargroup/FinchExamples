@@ -1,88 +1,83 @@
 #==============================================================================#
-# 2D Conservative Diffusive Interface (CDI) model, semi-implicit, with
-# Finch V2 (Julia target).
+# 2D Conservative Diffusive Interface (CDI) model, semi-implicit: BDF2 in time
+# (BDF1 on the first step) with the sharpening term linearized and two Picard
+# iterations per step, each one linear solve. Finch V2 (branch dev); the scheme
+# is in scheme.jl (shared with sharpening_sweep.jl), the shared helpers and the
+# FINCH_TARGET switch (CPU Julia, or MLIR on the CPU/GPU) in ../common.jl.
 #
-#   theta1*phi_t + theta2*(1/2)*[div(u*phi) + u.grad(phi)]
-#     - theta3*div(gamma*eps*grad(phi)) + theta4*div(gamma*(phi - phi^2)*nhat) = 0
+#   theta1*phi_t + theta2*div(u*phi) - theta3*div(gamma*eps*grad(phi))
+#     + theta4*div(gamma*(phi - phi^2)*nhat) = 0,   nhat = grad(phi)/|grad(phi)|
 #
-# phi is the phase field, 0 in one phase and 1 in the other, and nhat is the
-# unit interface normal grad(phi)/|grad(phi)|. The diffusion and sharpening
-# terms act against each other and hold the interface at a tanh profile of
-# fixed width.
+# The normal is recovered at the nodes by an L2 projection of the gradient of
+# the lagged field (consistent mass matrix). Run with ./run.sh; CDI_CASE picks
+# the benchmark (see scheme.jl):
+#   circle     (default) a circle carried through the square by u = (1, 0),
+#              compared with the translated profile at T = 0.4 (mesh 300 x 300)
+#   zalesak    Zalesak's slotted disk, one revolution, compared with the initial
+#              field: max and L1 (lumped) error (mesh 200 x 200)
+#   sheardrop  a drop in the time-reversed vortex of Mirjalili et al. 2020,
+#              one period, the same errors plus the most stretched state at
+#              T/2 (mesh 200 x 200; paper512.sh runs the paper's parameters)
+# CDI_NEL overrides the mesh, CDI_OUTDIR the output folder (default
+# output/<case>/), CDI_GAMMA and CDI_EPS_DX the interface parameters.
 #
-# Interface normal: recovered at the NODES by an L2 projection of the finite
-# element gradient of the Picard iterate phis, one field per component,
-# refreshed before each of the two solves (consistent mass; Finch V2 has no
-# lumped one, the V1 version of this example lumped it). With the element-wise
-# normal from the gradient of the linear basis (constant per element, jumping
-# between elements) this case grew a 3-element zigzag along the leading edge
-# from t ~ 0.3 on this mesh, max error 0.128, with none of the time-scheme or
-# linearization changes curing it; with the nodal normal the front is flat to
-# 0.02 elements and the max error is 0.0068.
-#
-# Time discretization (semi-implicit, two Picard iterations per step):
-#   - BDF2 for the time derivative, BDF1 on the first step:
-#       phi_t ~ (a0*phi + a1*phio + a2*phioo)/dt
-#   - advection and diffusion implicit (linear in phi)
-#   - sharpening linearized with a lagged field phis:
-#       gamma*(phi - phi^2)*nhat ~ gamma*phi*(1 - phis)*nhat(phis)
-#   - iteration 1 uses phis = phio, iteration 2 uses phis = the result of
-#     iteration 1. Each iteration is one linear solve; the matrix depends on
-#     phis through the sharpening term, so it is rebuilt for iteration 2.
-#
-# Finch V2 has forward and backward Euler only, so one time step is written
-# as a step_schedule, as in Example 9 (the scheme is in scheme.jl, shared with
-# sharpening_sweep.jl). The matrix is not symmetric because of advection, so
-# BiCGSTAB is used.
-#
-# Test problem: a circle of radius R carried by a uniform velocity, the same
-# case as Example 6. The profile translates with almost no change of shape, so
-#   phi(x,y,t) = 0.5*(1 - tanh((r - R)/(2*eps)))
-# measured from the moving centre is close to the solution; a curved interface
-# is not an equilibrium profile, so it is not exact.
-#
-# Boundaries: phi = 0 is imposed at the inflow x = 0. At the outflow x = 1 the
-# convective boundary flux theta2*(u.n)*phi is kept and the diffusive and
-# sharpening fluxes are dropped (the do-nothing outflow condition), so mass
-# leaves at the rate the flow carries it out. The V1 version evaluated that
-# flux from the lagged field phis; here it is implicit (scheme.jl). Top and
-# bottom have u.n = 0.
-#
-# Continuous Galerkin, linear elements on a quad mesh.
+# Output: solution.csv (x, y, phi at T, the reference field, and phi at T/2
+# for the shear drop), solution_timeseries.csv, snapshot_times.csv.
 #==============================================================================#
-
-using DelimitedFiles
 
 include("scheme.jl")
 
-# Time step. Diffusion is implicit, so the explicit limit dx^2/(4*gamma*eps)
-# does not apply; dt is set by accuracy through the advective CFL number.
-# CFL 0.25 kept phi within [0,1] and sat near the spatial error floor in the
-# 1D study (Example 9).
+const CASE = get(ENV, "CDI_CASE", "circle")
+CASE in CASES || error("CDI_CASE must be circle, zalesak or sheardrop, got \"$CASE\"")
 const CFL = 0.25
+const OUT_DIR = joinpath(@__DIR__, get(ENV, "CDI_OUTDIR", joinpath("output", CASE)))
+mkpath(OUT_DIR)
 
-const OUT_DIR = joinpath(@__DIR__, "output")
-r = run_case(CFL, 2; nel = parse(Int, get(ENV, "CDI_NEL", string(NEL))),
-             proj_dir = joinpath(OUT_DIR, "finch"), snapshots = 60, verbose = true)
+r = run_case(CFL, 2; case = CASE, nel = parse(Int, get(ENV, "CDI_NEL", string(case_nel(CASE)))),
+             proj_dir = joinpath(OUT_DIR, "finch"), verbose = true)
+r.ok || error("the run failed")
+x, y, phivals, T = r.x, r.y, r.phi, r.T
 
-# Error check against the translated exact profile
-x, y, phivals = r.x, r.y, r.phi
-eps = 1.0/round(Int, 1/minimum(diff(sort(unique(x)))))
-xc = XC0 + UX*T
-yc = YC0 + UY*T
-rr = sqrt.((x .- xc).^2 .+ (y .- yc).^2)
-exact = 0.5 .* (1 .- tanh.((rr .- R) ./ (2*eps)))
+if CASE == "circle"
+    # Error against the translated exact profile
+    xc = XC0 + 1.0*T
+    yc = YC0 + 0.0*T
+    rr = sqrt.((x .- xc).^2 .+ (y .- yc).^2)
+    exact = 0.5 .* (1 .- tanh.((rr .- R) ./ (2*r.eps)))
+    maxerr = maximum(abs.(phivals .- exact))
+    println("dt = " * string(r.dt) * ", steps = " * string(r.nsteps) * " (CFL " * string(CFL) * ")")
+    println("max error = " * string(maxerr))
+    println("min phi = " * string(minimum(phivals)) * ", max phi = " * string(maximum(phivals)))
+    println("relative mass change = " * string((r.mass[end] - r.mass[1])/r.mass[1]))
+    data = [x y phivals exact]
+else
+    # Error after one revolution or one period, against the initial field
+    phi0 = r.snapshots[1]
+    dx   = 1.0/round(Int, 1/minimum(diff(sort(unique(x)))))
+    wts  = lumped_weights(x, y, dx)      # half at an edge node, quarter at a corner
+    err  = phivals .- phi0
+    maxerr = maximum(abs.(err))
+    l1err  = sum(wts .* abs.(err))      # the usual Zalesak measure / the shape error of the paper
+    if CASE == "zalesak"
+        println("dt = " * string(r.dt) * ", steps = " * string(r.nsteps) * " (CFL " * string(CFL) * ", one revolution)")
+        println("max error = " * string(maxerr))
+        println("L1 error = " * string(l1err))
+        data = [x y phivals phi0]
+    else
+        nel = round(Int, 1/dx)
+        phihalf = r.snapshots[argmin(abs.(r.snap_times .- T/2))]   # the most stretched state
+        println("mesh " * string(nel) * " x " * string(nel) * ", eps/dx = " * string(r.eps/dx) * ", gamma/umax = " * string(r.gam/r.umax))
+        println("dt = " * string(r.dt) * ", steps = " * string(r.nsteps) * " (CFL " * string(CFL) * ", one period T = " * string(T) * ")")
+        println("max error = " * string(maxerr))
+        println("L1 (shape) error = " * string(l1err))
+        data = [x y phivals phi0 phihalf]
+    end
+    println("min phi = " * string(minimum(phivals)) * ", max phi = " * string(maximum(phivals)))
+    println("relative mass change = " * string((r.mass[end] - r.mass[1])/r.mass[1]))
+end
 
-maxerr = maximum(abs.(phivals .- exact))
-println("dt = " * string(r.dt) * ", steps = " * string(r.nsteps) * " (CFL " * string(CFL) * ")")
-println("max error = " * string(maxerr))
-println("min phi = " * string(minimum(phivals)) * ", max phi = " * string(maximum(phivals)))
-println("relative mass change = " * string((r.mass[end] - r.mass[1])/r.mass[1]))
-
-data = [x y phivals exact]
 writedlm(joinpath(OUT_DIR, "solution.csv"), data, ',')
-
 # Time series: columns 1-2 = x, y; columns 3.. = phi at each snapshot time
-writedlm(joinpath(OUT_DIR, "solution_timeseries.csv"), hcat(x, y, r.snapshots...), ',')
-writedlm(joinpath(OUT_DIR, "snapshot_times.csv"), r.snap_times, ',')
+write_timeseries(OUT_DIR, "solution", [x y], reduce(hcat, r.snapshots))
+write_snapshot_times(OUT_DIR, r.snap_times)
 println(string(length(r.snap_times)) * " snapshots written")

@@ -1,5 +1,6 @@
-function S = plot_style()
-% Shared figure styling for the Finch examples.
+function S = plot_style(casename)
+% Shared figure styling for the Finch examples. The optional casename (or the
+% CDI_CASE environment variable; default 'circle') selects output/<case>/.
 % Returns a struct with colors and helper functions:
 %   S.blue, S.orange       series colors (numerical, exact)
 %   S.ink, S.ink2          text colors (primary, secondary)
@@ -26,10 +27,18 @@ S.ramp = @(n) [linspace(ramp_ends(1,1), ramp_ends(2,1), n)', ...
 S.figure = @(w, h) figure('Color', 'w', 'Position', [100 100 w h], ...
                           'InvertHardcopy', 'off');
 S.axes   = @style_axes;
-% Results live in the example's output/ folder, one level up from this
+% Results live in the example's output/<case>/ folder, one level up from this
 % script. Deriving it from the script's own path keeps these helpers
 % working whatever the current directory happens to be.
-outdir   = fullfile(fileparts(mfilename('fullpath')), '..', 'output');
+if nargin < 1 || isempty(casename), casename = getenv('CDI_CASE'); end
+if isempty(casename), casename = 'circle'; end
+S.casename = casename;
+outdir   = fullfile(fileparts(mfilename('fullpath')), '..', 'output', casename);
+% CDI_OUTDIR (as set by paper512.sh, relative to the example folder) selects
+% another results folder, e.g.  setenv('CDI_OUTDIR', 'output/paper_512')
+if ~isempty(getenv('CDI_OUTDIR'))
+    outdir = fullfile(fileparts(mfilename('fullpath')), '..', getenv('CDI_OUTDIR'));
+end
 S.file   = @(name) fullfile(outdir, name);
 S.load   = @(name) readmatrix(fullfile(outdir, name));
 S.save   = @(fig, name) exportgraphics(fig, fullfile(outdir, name), ...
