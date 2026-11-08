@@ -1,5 +1,5 @@
 dt = 0.0008333333333333334, steps = 480 (CFL 0.25)
-max error = 0.006215114785736775
-min phi = 0.0, max phi = 0.9999999994267148
-relative mass change = -4.637058001964303e-11
+max error = 0.006228675703550457
+min phi = 0.0, max phi = 0.999999999405067
+relative mass change = -6.773981801998769e-12
 61 snapshots written
