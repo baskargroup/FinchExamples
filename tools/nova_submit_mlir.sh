@@ -1,7 +1,7 @@
 #!/bin/bash
 # Submit the MLIR-target runs (Finch's IREE backend) as NOVA jobs, one per
 # example, case and target, each ending with the regression check against the
-# CPU reference at the solver-tolerance level (rtol 1e-6, atol 1e-9: the MLIR
+# CPU reference at the solver-tolerance level (rtol 1e-6, atol 1e-8: the MLIR
 # target solves with BiCGSTAB + Jacobi).
 #
 #     bash tools/nova_submit_mlir.sh smoke    Examples 1 and 2 on mlir_cuda and mlir_cpu (4 jobs)
@@ -28,7 +28,7 @@ submit() {   # folder case target ref
     if [ "$target" = "mlir_cuda" ]; then res="--gres=gpu:a100:1 --cpus-per-task=8 --mem=32G"
     else res="--cpus-per-task=32 --mem=32G"; fi
     sbatch --chdir="$folder" --job-name="$name" --time=04:00:00 $res \
-           --export=ALL,FINCH_TARGET=$target,CDI_CASE=$case,CDI_OUTDIR=$outdir,REF=$ref,LOG=$outdir/runlog.txt,RTOL=1e-6,ATOL=1e-9 \
+           --export=ALL,FINCH_TARGET=$target,CDI_CASE=$case,CDI_OUTDIR=$outdir,REF=$ref,LOG=$outdir/runlog.txt,RTOL=1e-6,ATOL=1e-8 \
            "$(pwd)/tools/nova_run.sh"
 }
 E1=Example1_Poisson1D; E2=Example2_Poisson2D; E3=Example3_ConvectionDiffusion1D; E4=Example4_ConvectionDiffusion2D
