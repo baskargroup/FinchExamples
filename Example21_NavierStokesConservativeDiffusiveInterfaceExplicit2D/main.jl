@@ -56,12 +56,12 @@
 # 1e-6 of the Poisson diagonal (CDI_PREG), pins the constant.
 #
 # Continuous Galerkin, linear quadrilaterals, equal order for u and p.
-# Run with ./run.sh (Julia 1.12, Finch V2 dev). CDI_NEL and CDI_T override the
+# Run with ./run.sh (Julia 1.12, Finch V2 dev); FINCH_TARGET picks the CPU Julia or
+# the MLIR CPU/GPU target (see ../common.jl). CDI_NEL and CDI_T override the
 # mesh and the final time.
 #==============================================================================#
 
-using Finch
-using DelimitedFiles
+include(joinpath(@__DIR__, "..", "common.jl"))   # Finch, FINCH_TARGET switch, helpers
 
 const CASE = uppercase(get(ENV, "CDI_CASE", "A"))
 CASE in ("A", "B", "C", "D", "E") || error("CDI_CASE must be A, B, C, D or E")
@@ -160,9 +160,9 @@ const DT     = T_END / NSTEPS
 # Every matrix is SPD (density-weighted mass, mass, variable Poisson): CG
 # CDI_MAXIT: CG iteration cap (the Jacobi-preconditioned pressure solve needs
 # more than Finch's default 500 at 120 x 240)
-ctx = init_finch("nscdi2d"; verbose = false, solver = :cg, solver_tol = 1e-10,
-                 solver_max_iter = parse(Int, get(ENV, "CDI_MAXIT", "5000")),
-                 target = JuliaCPUTarget(out_dir = PROJ_DIR, func_name = "nscdi"))
+ctx = init_finch("nscdi2d"; verbose = false,
+                 finch_solver_kwargs(:cg; tol = 1e-10, max_iter = parse(Int, get(ENV, "CDI_MAXIT", "5000")))...,
+                 target = finch_target("nscdi", PROJ_DIR))
 
 domain(2)
 if CASE in ("C", "D", "E")
@@ -238,7 +238,7 @@ coefficient("grav", [(x, y, z, t) -> 0.0, (x, y, z, t) -> -GRAV])
 
 time_interval(T_END)
 const NFRAMES = parse(Int, get(ENV, "CDI_FRAMES", "60"))
-time_stepper(STEP_EULER_EXPLICIT; dt = DT, store_trajectory = true,
+time_stepper(STEP_EULER_EXPLICIT; Nsteps = NSTEPS, store_trajectory = true,
              snapshot_every = max(1, NSTEPS ÷ NFRAMES))
 
 # ---- weak forms ------------------------------------------------------------------
@@ -311,24 +311,23 @@ println("case $CASE: NEL = $NEL, LY = $LY, dt = $DT, steps = $NSTEPS, theta23 = 
 println("  dt limits: ", join(("$k $(round(v, sigdigits = 3))" for (k, v) in lims), ", "))
 t0 = time()
 solve()
-Finch.run_emitted_julia!(ctx.target, alpha, u, p)
+finch_run!(ctx, alpha, u, p)
 println("run time = ", round(time() - t0, digits = 1), " s")
 
 # ---- output ---------------------------------------------------------------------
 x = ctx.grid.nodes[1, :]; y = ctx.grid.nodes[2, :]; N = length(x)
 results = joinpath(PROJ_DIR, "results")
-_, snaps = Finch.read_results_manifest(results)
-vals  = [Finch.load_snapshot_values(results, s) for s in snaps]
-times = [Float64(s["t"]) for s in snaps]
-A  = reduce(hcat, [v["alpha"] for v in vals])
-UX = reduce(hcat, [v["u"][1:N] for v in vals])
-UY = reduce(hcat, [v["u"][N+1:2N] for v in vals])
-P  = reduce(hcat, [v["p"] for v in vals])
-writedlm(joinpath(OUT_DIR, "alpha_timeseries.csv"), [x y A], ',')
-writedlm(joinpath(OUT_DIR, "ux_timeseries.csv"), [x y UX], ',')
-writedlm(joinpath(OUT_DIR, "uy_timeseries.csv"), [x y UY], ',')
-writedlm(joinpath(OUT_DIR, "p_timeseries.csv"), [x y P], ',')
-writedlm(joinpath(OUT_DIR, "snapshot_times.csv"), times, ',')
+times, fields = read_snapshots(PROJ_DIR)
+check_final_time(times, T_END)
+A  = fields["alpha"]
+UX = fields["u"][1:N, :]          # vector fields are component-blocked
+UY = fields["u"][N+1:2N, :]
+P  = fields["p"]
+write_timeseries(OUT_DIR, "alpha", [x y], A)
+write_timeseries(OUT_DIR, "ux", [x y], UX)
+write_timeseries(OUT_DIR, "uy", [x y], UY)
+write_timeseries(OUT_DIR, "p", [x y], P)
+write_snapshot_times(OUT_DIR, times)
 
 # history.csv: t, volume, kinetic energy, ||div u||_2, centroid x, y,
 # velocity x, y, circularity, ||u - u0||_2
