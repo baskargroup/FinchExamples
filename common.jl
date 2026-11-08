@@ -80,6 +80,18 @@ function read_snapshots(proj_dir::String)
 end
 
 final_values(fields, name::String) = fields[name][:, end]
+
+"""
+    check_final_time(times, T)
+
+Error unless the last snapshot is the final time `T` (both targets write the final step as a
+snapshot; the post-processing of every example reads the final state from it).
+"""
+function check_final_time(times, T)
+    abs(times[end] - T) <= 1e-9 * T ||
+        error("the last snapshot is at t = $(times[end]), not the final time T = $T")
+    return nothing
+end
 final_vector(fields, name::String, N::Int) = (fields[name][1:N, end], fields[name][N+1:2N, end])
 
 write_timeseries(out_dir::String, name::String, coords::AbstractMatrix, A::AbstractMatrix) =

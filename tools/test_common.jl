@@ -26,5 +26,7 @@ const LOAD = "include(\"$(joinpath(ROOT, "common.jl"))\"); "
     @test ok && occursin("bicgstab jacobi", out)
     ok, out = in_fresh_process("foo", LOAD * "println(\"reached\")")
     @test !ok && occursin("FINCH_TARGET must be julia, mlir_cpu or mlir_cuda", out) && !occursin("reached", out)
+    @test check_final_time([0.0, 0.5, 1.0], 1.0) === nothing
+    @test_throws ErrorException check_final_time([0.0, 0.5, 0.9], 1.0)
     @test NDOTGV_NODAL_2D == "(g[1]*grad(v)[1] + g[2]*grad(v)[2])*pow(g[1]*g[1] + g[2]*g[2] + delta, -0.5)"
 end

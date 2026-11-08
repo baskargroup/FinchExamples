@@ -46,8 +46,7 @@
 # Continuous Galerkin, linear elements on a quad mesh.
 #==============================================================================#
 
-using Finch
-using DelimitedFiles
+include(joinpath(@__DIR__, "..", "common.jl"))   # Finch, FINCH_TARGET switch, helpers
 
 # results are written to output/, a folder kept in the repo; Finch's generated
 # project (and its raw results) goes to output/finch/
@@ -70,13 +69,13 @@ const YC0  = 0.5
 # Time stepping. Explicit diffusive limit in 2D (lumped mass):
 # dt <= dx^2/(4*gamma*eps). Consistent mass matrix needs roughly 1/3 of that.
 const T      = 0.4
-const DT     = 0.2*DX*DX/(4*GAM*EPS)
-const NSTEPS = Int(round(T/DT))
+const NSTEPS = Int(round(T/(0.2*DX*DX/(4*GAM*EPS))))
+const DT     = T/NSTEPS             # the step Finch takes (Nsteps is what it is given)
 
 # The system matrices are mass matrices (symmetric positive definite), so
 # plain conjugate gradients converge in a few iterations.
-ctx = init_finch("cdi2d"; solver = :cg, solver_tol = 1e-12,
-                 target = JuliaCPUTarget(out_dir = PROJ_DIR, func_name = "cdi2d"))
+ctx = init_finch("cdi2d"; finch_solver_kwargs(:cg; tol = 1e-12)...,
+                 target = finch_target("cdi2d", PROJ_DIR))
 
 domain(2)
 mesh(MESH_QUAD; elsperdim = NEL)   # unit square
@@ -86,8 +85,7 @@ function_space(order = 1)
 # 3 = y==0 and 4 = y==1 (bottom and top, u.n = 0)
 
 phi = variable("phi")       # the phase field
-gx  = variable("gx")        # projected gradient of phi, x component
-gy  = variable("gy")        # and y component
+g   = variable("g"; kind = VAR_VECTOR, components = 2)   # projected gradient of phi (nodal normal)
 test_symbol("v")
 
 # Inflow: the fluid entering at x = 0 carries phi = 0, so that value is imposed.
@@ -107,19 +105,17 @@ coefficient("u", [(x, y, z, t) -> UX, (x, y, z, t) -> UY])   # velocity vector
 coefficient("gamma", GAM)
 coefficient("epsilon", EPS)
 coefficient("delta", 1e-12)     # regularizes |grad(phi)| in the bulk
-coefficient("ex", [(x, y, z, t) -> 1.0, (x, y, z, t) -> 0.0])   # unit vectors, to
-coefficient("ey", [(x, y, z, t) -> 0.0, (x, y, z, t) -> 1.0])   # pick components
 
 # Snapshots for the time series: phi every 40th step, 60 snapshots plus the
 # one at t = 0, the 61 the MATLAB scripts read
 time_interval(T)
-time_stepper(STEP_EULER_EXPLICIT; dt = DT, store_trajectory = true, snapshot_every = 40)
+time_stepper(STEP_EULER_EXPLICIT; Nsteps = NSTEPS, store_trajectory = true, snapshot_every = 40)
 
-# nhat . grad(v), with nhat from the projected gradient
-const NDOTGV = "(gx*dot(ex, grad(v)) + gy*dot(ey, grad(v)))*pow(gx*gx + gy*gy + delta, -0.5)"
+# nhat . grad(v), with nhat from the projected gradient (common.jl)
+const NDOTGV = NDOTGV_NODAL_2D
 
-# Weak forms (residual = 0). The projection, one per component:
-#   (g_i, v) - (dphi/dx_i, v)
+# Weak forms (residual = 0). The projection (vector unknown g, vector test v):
+#   (g, v) - (grad phi, v)
 # and the phase field, all spatial terms at the previous level:
 #   theta1*(Dt phi, v)
 #   + theta2*(u.grad phi, v)                          advection
@@ -133,29 +129,29 @@ const NDOTGV = "(gx*dot(ex, grad(v)) + gy*dot(ey, grad(v)))*pow(gx*gx + gy*gy + 
 # sharpening boundary terms are dropped ("do-nothing"). Finch V2 cannot yet
 # put the unknown in a ds term of a nonlinear form, so this is also the form
 # it can take.
-weak_form(gx, "gx*v - dot(grad(phi), ex)*v")
-weak_form(gy, "gy*v - dot(grad(phi), ey)*v")
+weak_form(g, "dot(g, v) - dot(grad(phi), v)")
 weak_form(phi, "theta1*Dt(phi)*v" *
                " + theta2*dot(u, grad(phi))*v" *
                " + theta3*gamma*epsilon*dot(grad(phi), grad(v))" *
                " - theta4*gamma*(phi - phi*phi)*" * NDOTGV)
 
-step_schedule(gx, gy, phi, monitor("mass", "phi"))
+println("dt = $DT, steps = $NSTEPS")
+step_schedule(g, phi, monitor("mass", "phi"))
 solve()
-Finch.run_emitted_julia!(ctx.target, phi)
+finch_run!(ctx, phi)
 
-# Error check against the translated exact profile
+# Error check against the translated exact profile; the final state is the last snapshot
 x = ctx.grid.nodes[1, :]
 y = ctx.grid.nodes[2, :]
-phivals = phi.values[1, :]
+snap_times, fields = read_snapshots(PROJ_DIR)
+check_final_time(snap_times, T)
+phivals = final_values(fields, "phi")
 xc = XC0 + UX*T
 yc = YC0 + UY*T
 r  = sqrt.((x .- xc).^2 .+ (y .- yc).^2)
 exact = 0.5 .* (1 .- tanh.((r .- R) ./ (2*EPS)))
 
-results = joinpath(PROJ_DIR, "results")
-mon = readdlm(joinpath(results, "monitors.csv"), ',', skipstart = 1)
-mass0, massT = mon[1, 3], mon[end, 3]
+mass0, massT, _ = mass_change(joinpath(PROJ_DIR, "results"))
 
 maxerr = maximum(abs.(phivals .- exact))
 println("max error = " * string(maxerr))
@@ -166,9 +162,6 @@ data = [x y phivals exact]
 writedlm(joinpath(OUT_DIR, "solution.csv"), data, ',')
 
 # Time series: columns 1-2 = x, y; columns 3.. = phi at each snapshot time
-_, snaps = Finch.read_results_manifest(results)
-snapshots  = [Finch.load_snapshot_values(results, s)["phi"] for s in snaps]
-snap_times = [Float64(s["t"]) for s in snaps]
-writedlm(joinpath(OUT_DIR, "solution_timeseries.csv"), hcat(x, y, snapshots...), ',')
-writedlm(joinpath(OUT_DIR, "snapshot_times.csv"), snap_times, ',')
+write_timeseries(OUT_DIR, "solution", [x y], fields["phi"])
+write_snapshot_times(OUT_DIR, snap_times)
 println(string(length(snap_times)) * " snapshots written")

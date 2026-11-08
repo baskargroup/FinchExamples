@@ -1,4 +1,5 @@
-max error = 0.01831690110789322
-min phi = 0.0, max phi = 1.0000001948372514
-relative mass change = 3.38984516044286e-7
+dt = 0.0001666666666666667, steps = 2400
+max error = 0.01831811774842576
+min phi = 0.0, max phi = 0.9999999995952394
+relative mass change = 3.890718449635647e-10
 61 snapshots written

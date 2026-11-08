@@ -52,8 +52,7 @@
 # Continuous Galerkin, linear elements on a quad mesh.
 #==============================================================================#
 
-using Finch
-using DelimitedFiles
+include(joinpath(@__DIR__, "..", "common.jl"))   # Finch, FINCH_TARGET switch, helpers
 
 # Results are written to output/ (Finch's generated project to output/finch/).
 # The mesh, the interface parameters, the normal and the output folder can be
@@ -110,16 +109,15 @@ const DT     = T/NSTEPS             # land exactly on one revolution
 
 # The system matrices are mass matrices (symmetric positive definite): CG. The
 # tight tolerance keeps the mass drift of 25,000 steps at round-off.
-ctx = init_finch("cdi2dzalesak"; solver = :cg, solver_tol = 1e-12,
-                 target = JuliaCPUTarget(out_dir = PROJ_DIR, func_name = "cdi2dzalesak"))
+ctx = init_finch("cdi2dzalesak"; finch_solver_kwargs(:cg; tol = 1e-12)...,
+                 target = finch_target("cdi2dzalesak", PROJ_DIR))
 
 domain(2)
 mesh(MESH_QUAD; elsperdim = NEL)   # unit square
 function_space(order = 1)
 
 phi = variable("phi")       # the phase field
-gx  = variable("gx")        # projected gradient of phi, x component
-gy  = variable("gy")        # and y component
+g   = variable("g"; kind = VAR_VECTOR, components = 2)   # projected gradient of phi (nodal normal)
 test_symbol("v")
 
 # Zero total flux through the walls: no boundary condition and no boundary
@@ -137,22 +135,18 @@ coefficient("u", [(x, y, z, t) -> 0.5 - y, (x, y, z, t) -> x - 0.5])   # solid-b
 coefficient("gamma", GAM)
 coefficient("epsilon", EPS)
 coefficient("delta", 1e-12)     # regularizes |grad(phi)| in the bulk
-coefficient("ex", [(x, y, z, t) -> 1.0, (x, y, z, t) -> 0.0])   # unit vectors, to
-coefficient("ey", [(x, y, z, t) -> 0.0, (x, y, z, t) -> 1.0])   # pick components
 
 # Snapshots for the time series: about 60, plus the one at t = 0
 time_interval(T)
-time_stepper(STEP_EULER_EXPLICIT; dt = DT, store_trajectory = true,
+time_stepper(STEP_EULER_EXPLICIT; Nsteps = NSTEPS, store_trajectory = true,
              snapshot_every = max(1, NSTEPS ÷ 60))
 
 # nhat . grad(v): from the projected gradient (nodal), or element by element
 # from the gradient of the linear basis (CDI_NORMAL=elementwise)
-const NDOTGV = NODAL_NORMAL ?
-    "(gx*dot(ex, grad(v)) + gy*dot(ey, grad(v)))*pow(gx*gx + gy*gy + delta, -0.5)" :
-    "dot(grad(phi), grad(v))*pow(dot(grad(phi), grad(phi)) + delta, -0.5)"
+const NDOTGV = NODAL_NORMAL ? NDOTGV_NODAL_2D : NDOTGV_ELEMENT_2D   # strings in common.jl
 
-# Weak forms (residual = 0). The projection, one per component:
-#   (g_i, v) - (dphi/dx_i, v)
+# Weak forms (residual = 0). The projection (vector unknown g, vector test v):
+#   (g, v) - (grad phi, v)
 # and the phase field, all spatial terms at the previous level:
 #   theta1*(Dt phi, v)
 #   - theta2/2*(u*phi, grad v)                        conservative half
@@ -160,8 +154,7 @@ const NDOTGV = NODAL_NORMAL ?
 #   + theta3*(gamma*eps*grad phi, grad v)             diffusion
 #   - theta4*(gamma*(phi - phi^2)*nhat, grad v)       sharpening
 # No boundary term and no boundary condition: zero total flux through the walls.
-weak_form(gx, "gx*v - dot(grad(phi), ex)*v")
-weak_form(gy, "gy*v - dot(grad(phi), ey)*v")
+weak_form(g, "dot(g, v) - dot(grad(phi), v)")
 weak_form(phi, "theta1*Dt(phi)*v" *
                " - 0.5*theta2*phi*dot(u, grad(v))" *
                " - 0.5*theta2*phi*dot(u, grad(v))" *
@@ -169,34 +162,28 @@ weak_form(phi, "theta1*Dt(phi)*v" *
                " - theta4*gamma*(phi - phi*phi)*" * NDOTGV)
 
 if NODAL_NORMAL
-    step_schedule(gx, gy, phi, monitor("mass", "phi"))
+    step_schedule(g, phi, monitor("mass", "phi"))
 else
     step_schedule(phi, monitor("mass", "phi"))
 end
 solve()
-Finch.run_emitted_julia!(ctx.target, phi)
+finch_run!(ctx, phi)
 
 # Error after one revolution, against the initial field
 x = ctx.grid.nodes[1, :]
 y = ctx.grid.nodes[2, :]
-results = joinpath(PROJ_DIR, "results")
-_, snaps = Finch.read_results_manifest(results)
-snapshots  = [Finch.load_snapshot_values(results, s)["phi"] for s in snaps]
-snap_times = [Float64(s["t"]) for s in snaps]
+snap_times, fields = read_snapshots(PROJ_DIR)
+check_final_time(snap_times, T)
+snapshots  = [fields["phi"][:, k] for k in eachindex(snap_times)]
 phi0    = snapshots[1]          # the exact solution after one revolution
-phivals = phi.values[1, :]
+phivals = final_values(fields, "phi")
 
 # Lumped finite element weights (half at an edge node, quarter at a corner)
-wts = fill(DX*DX, length(x))
-for i in eachindex(x)
-    if x[i] < 1e-12 || x[i] > 1 - 1e-12; wts[i] *= 0.5; end
-    if y[i] < 1e-12 || y[i] > 1 - 1e-12; wts[i] *= 0.5; end
-end
+wts = lumped_weights(x, y, DX)
 err = phivals .- phi0
 maxerr = maximum(abs.(err))
 l1err  = sum(wts .* abs.(err))            # the usual Zalesak measure
-mon = readdlm(joinpath(results, "monitors.csv"), ',', skipstart = 1)
-mass0, massT = mon[1, 3], mon[end, 3]
+mass0, massT, _ = mass_change(joinpath(PROJ_DIR, "results"))
 
 println("normal: " * (NODAL_NORMAL ? "nodal" : "element-wise"))
 println("dt = " * string(DT) * ", steps = " * string(NSTEPS) * " (one revolution, T = 2*pi)")
@@ -209,6 +196,6 @@ data = [x y phivals phi0]
 writedlm(joinpath(OUT_DIR, "solution.csv"), data, ',')
 
 # Time series: columns 1-2 = x, y; columns 3.. = phi at each snapshot time
-writedlm(joinpath(OUT_DIR, "solution_timeseries.csv"), hcat(x, y, snapshots...), ',')
-writedlm(joinpath(OUT_DIR, "snapshot_times.csv"), snap_times, ',')
+write_timeseries(OUT_DIR, "solution", [x y], fields["phi"])
+write_snapshot_times(OUT_DIR, snap_times)
 println(string(length(snap_times)) * " snapshots written")
