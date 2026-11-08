@@ -1,6 +1,7 @@
+mesh 200 x 200, eps/dx = 1.0, gamma/umax = 1.0
 dt = 0.00125, steps = 3200 (CFL 0.25, one period T = 4.0)
-max error = 0.6958748944144849
-L1 (shape) error = 0.003636414803688038
-min phi = 1.404731810629096e-10, max phi = 0.9999999974947954
-relative mass change = 8.365809043910632e-11
+max error = 0.47686515960112147
+L1 (shape) error = 0.0018026374968661497
+min phi = 1.621177636686011e-10, max phi = 0.9999999969974634
+relative mass change = -2.4843166129097273e-13
 65 snapshots written
