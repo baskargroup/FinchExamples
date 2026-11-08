@@ -30,4 +30,8 @@ cp "$T/new.txt" "$T/ref.txt"; echo "run time = 99 s" >> "$T/new.txt";     check 
 printf 'gas volume: 0.25 -> 0.41079902933452633, created 0.16079863239518402, balance error 3.969393423397527e-7\nmax error = 1.0e-7\n' > "$T/ref.txt"
 printf 'gas volume: 0.25 -> 0.41079902933452633, created 0.16079863239518402, balance error 3.969388275293362e-7\nmax error = 1.0e-7\n' > "$T/new.txt"; check "scaled tolerance" 0 OK
 printf 'gas volume: 0.25 -> 0.41079902933452633, created 0.16079863239518402, balance error 3.969393423397527e-7\nmax error = 1.00001e-7\n' > "$T/new.txt"; check "lone small number" 1 "max error"
+# an absolute floor for round-off-level numbers (a mass drift of 1e-9 +- 1e-14)
+printf 'relative mass change = -7.475342541264091e-9\n' > "$T/ref.txt"
+printf 'relative mass change = -7.475355312345479e-9\n' > "$T/new.txt"; check "absolute floor" 0 OK
+printf 'relative mass change = -7.4e-9\n' > "$T/new.txt";              check "above the floor" 1 "mass"
 [ $fail = 0 ] && echo ALL PASS || { echo SOME FAILED; exit 1; }
