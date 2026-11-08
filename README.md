@@ -248,7 +248,9 @@ Inside any example folder:
     FINCH_TARGET=mlir_cpu ./run.sh        the MLIR target on the CPU
 
 Results and a `runlog.txt` with the printed output land in that example's
-`output/` (`output/<case>/`, or `output_case<X>/` in Example 21). The physics
+`output/` (`output/<case>/` in the case-switched examples, `output_case<X>/` in
+Example 21). Where juliaup's `julia +1.12` is not available, `JULIA=julia ./run.sh`
+runs with whatever `julia` is on the path. The physics
 (mesh, variables, weak forms, schedule) is the same in every mode; the switch
 changes only the code target, the solver (the MLIR target has CG and BiCGSTAB
 with Jacobi, so it uses BiCGSTAB everywhere) and how the generated project is
@@ -266,6 +268,27 @@ term every explicit step: Example 6 `circle` about 9 minutes, `zalesak` about
 `paper512*.sh` runs. The semi-implicit cases run in minutes. Run one example at
 a time: two Finch V2 runs side by side slow each other down more than tenfold.
 
+## Nova
+
+On ISU's Nova cluster the repository is a git clone at
+`/work/mech-ai/suresh/projects/FinchExamples` (commit and push here, `git pull`
+there; `NOVA_SSH_SETUP_MAC.md` describes the login and the Finch set-up under
+`/work/mech-ai/suresh/packages`). `tools/nova_run.sh` runs one example and case
+as a SLURM job and ends with the regression check; `tools/nova_submit_all.sh`,
+run from the repository root, submits every case once (it skips names already
+queued) and prints the queue. Each job writes `nova_<jobid>.txt` in its example
+folder; its last lines are the comparer's verdict (`OK (...)` and `compare exit 0`
+mean the case reproduces its reference). One case by hand:
+
+    sbatch --chdir=Example6_ConservativeDiffusiveInterfaceExplicit2D --job-name=Example6_zalesak \
+      --export=ALL,CDI_CASE=zalesak,REF=Example6_ConservativeDiffusiveInterfaceExplicit2D_zalesak.txt,LOG=output/zalesak/runlog.txt \
+      "$(pwd)/tools/nova_run.sh"
+
+For `FINCH_TARGET=mlir_cuda` add `--gres=gpu:a100:1` (the job script loads the
+cmake, ninja and cuda modules itself). CPU run times on Nova are about three
+times the laptop's (Example 6 `zalesak` 143 min, `sheardrop` 98 min, `circle`
+35 min; Example 21 case E 99 min).
+
 ## Reference numbers
 
 `regression/` holds the summary lines each example printed when it was last
@@ -274,6 +297,7 @@ against them (relative tolerance 1e-8 on the scale of each line, absolute
 1e-12). After any change to a script or to Finch:
 
     ./run.sh && python3 ../tools/compare_runlog.py ../regression/<reference>.txt output/runlog.txt
+    CDI_CASE=zalesak ./run.sh && python3 ../tools/compare_runlog.py ../regression/<reference>_zalesak.txt output/zalesak/runlog.txt
 
 The references were taken on the Julia target; the MLIR target solves with
 BiCGSTAB instead of LU or CG, so its numbers agree to the solver tolerance,

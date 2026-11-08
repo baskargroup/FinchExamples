@@ -43,7 +43,8 @@ finch_run!(ctx, u)
 
 # Error check against exact solution sin(pi*x)
 x = ctx.grid.nodes[1, :]
-uvals = u.values[1, :]
+_, fields = read_snapshots(PROJ_DIR)        # the solution as both targets write it
+uvals = final_values(fields, "u")
 maxerr = maximum(abs.(uvals .- sin.(pi .* x)))
 println("max error = " * string(maxerr))
 

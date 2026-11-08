@@ -40,7 +40,8 @@ finch_run!(ctx, u)
 # Get coordinates and solution values
 x = ctx.grid.nodes[1, :]   # x-coordinates
 y = ctx.grid.nodes[2, :]   # y-coordinates
-uvals = u.values[1, :]     # computed solution
+_, fields = read_snapshots(PROJ_DIR)        # the solution as both targets write it
+uvals = final_values(fields, "u")     # computed solution
 
 # Combine into a 3-column array: x, y, u
 data = [x y uvals]

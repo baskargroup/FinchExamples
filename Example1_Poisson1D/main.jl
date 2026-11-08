@@ -40,7 +40,8 @@ finch_run!(ctx, u)
 
 # Exact solution: sin(10*pi*x)*sin(pi*x)
 x = ctx.grid.nodes[1, :]                     # x-coordinates
-uvals = u.values[1, :]                       # computed solution
+_, fields = read_snapshots(PROJ_DIR)        # the solution as both targets write it
+uvals = final_values(fields, "u")                       # computed solution
 allerr = abs.(uvals .- sin.(10*pi .* x) .* sin.(pi .* x))   # absolute error at every node
 
 maxerr = maximum(allerr)                     # Compute maximum absolute error

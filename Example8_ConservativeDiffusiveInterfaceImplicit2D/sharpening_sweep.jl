@@ -8,7 +8,7 @@
 #   derived   phi*(1 - phis)               as in main.jl
 #   reversed  phis*(1 - phi)
 #   newton    (1 - 2*phis)*phi + phis^2    Newton about phis
-#   extrap    pe*(1 - pe), pe = 2*phio - phioo, one solve per step
+#   extrap    pe*(1 - pe), pe = 2*phio - phi(n-1), one solve per step
 #             (BDF2 with an extrapolated explicit term, the usual IMEX choice)
 # The first four run with 1, 2 or 3 Picard iterations: iteration 1 lags with
 # phio, each later one with the previous iterate. 'lagged' with one iteration
@@ -51,6 +51,7 @@ mkpath(joinpath(outdir, "hist")); mkpath(joinpath(outdir, "frames"))
 
 const NF = 40      # movie frames after t = 0
 eps_n = 1.0/nel
+const UX, UY = 1.0, 0.0     # the circle case's velocity (case_setup in scheme.jl)
 function exact(x, y, t)
     r = sqrt.((x .- XC0 .- UX*t).^2 .+ (y .- YC0 .- UY*t).^2)
     return 0.5 .* (1 .- tanh.((r .- R) ./ (2*eps_n)))
@@ -76,7 +77,7 @@ function sweep_case(form, iters, CFL, name)
     end
     t_end = nf > 0 ? ftimes[end] : 0.0
     p = status == "ok" ? r.phi : (nf > 0 ? frames[end] : fill(NaN, length(x)))
-    err   = status == "ok" ? maximum(abs.(p .- exact(x, y, T))) : NaN
+    err   = status == "ok" ? maximum(abs.(p .- exact(x, y, r.T))) : NaN
     dmass = status == "ok" ? (r.mass[end] - mass0)/mass0 : NaN
     if status == "ok" && (minimum(p) < -0.01 || maximum(p) > 1.01)
         status = "overshoot"            # finished, but phi left [-0.01, 1.01]

@@ -57,6 +57,7 @@ const CFL = 0.25
 
 const OUT_DIR = joinpath(@__DIR__, "output")
 r = run_case(CFL, 2; proj_dir = joinpath(OUT_DIR, "finch"), snapshots = 20)
+r.ok || error("the run failed")
 
 # Compare with the exact profile at the final time
 x, phivals = r.x, r.phi
