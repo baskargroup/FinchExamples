@@ -1,0 +1,8 @@
+case E: NEL = 96, LY = 2.0, dt = 0.00034722222222222224, steps = 7200, theta23 = 1.0, preg_rel = 1.0e-6, stgrad = proj
+volume: 0.5325373474547976 -> 0.5325373544874286, relative change 1.3205892423632669e-8
+kinetic energy: 0.0 -> 0.008219701639427148, relative change 8.219701639427147e297
+min alpha = 1.2308840967229332e-9, max alpha = 1.0000007342333488
+max ||div u||_2 = 1.6801633508546054
+max |u| at the end = 1.0832507299012248
+drop reaches the pool at t = 1.3333333333334618 (free fall: 1.3416407864998738)
+61 snapshots written
